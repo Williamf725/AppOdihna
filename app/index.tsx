@@ -68,7 +68,7 @@ export default function WelcomeScreen() {
         style={styles.overlay}
       >
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-          <Animated.View 
+          <Animated.View
             style={[
               styles.content,
               {
@@ -86,7 +86,7 @@ export default function WelcomeScreen() {
               <View style={styles.logoBadge}>
                 <Ionicons name="home-outline" size={40} color="#fff" />
               </View>
-              <Text style={styles.logoText}>ODIHNA LIVING</Text>
+              <Text style={styles.logoText}>ODIHNA</Text>
               <View style={styles.divider} />
               <Text style={styles.tagline}>Encuentra tu lugar en el mundo</Text>
             </View>
@@ -122,7 +122,7 @@ export default function WelcomeScreen() {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.footerText}>© 2025 Odihna Living. Todos los derechos reservados.</Text>
+            <Text style={styles.footerText}>© 2025 Odihna. Todos los derechos reservados.</Text>
           </Animated.View>
         </SafeAreaView>
       </LinearGradient>

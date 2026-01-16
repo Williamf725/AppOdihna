@@ -40,15 +40,11 @@ function MisAlojamientosContent() {
 
   // Cargar mis propiedades desde Supabase
   const loadMyProperties = async () => {
-    if (!user) {
-      console.log('No hay usuario autenticado');
-      setLoading(false);
-      return;
-    }
+    if (!user) return; // Evitar actualizar estado si se está cerrando sesión
 
     try {
       setLoading(true);
-      
+
       // Filtrar por owner_id
       const { data, error } = await supabase
         .from('properties')
@@ -95,8 +91,10 @@ function MisAlojamientosContent() {
   // Recargar al enfocar la pantalla
   useFocusEffect(
     useCallback(() => {
-      console.log('🔄 Recargando mis alojamientos...');
-      loadMyProperties();
+      if (user) {
+        console.log('🔄 Recargando mis alojamientos...');
+        loadMyProperties();
+      }
     }, [user])
   );
 

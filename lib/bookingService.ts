@@ -1,330 +1,405 @@
 // lib/bookingService.ts
-
 import { supabase } from './supabase';
 
 export interface BookingData {
-  propertyId: number;
-  guestName: string;
-  guestEmail: string;
-  guestPhone: string;
-  guestDocument?: string;
-  checkIn: string;
-  checkOut: string;
+  guest_id: string;
+  property_id: number;
+  check_in_date: string;
+  check_out_date: string;
   adults: number;
   children: number;
-  pricePerNight: number;
-  specialRequests?: string;
+  total_guests: number;
+  price_per_night: number;
+  number_of_nights: number;
+  subtotal: number;
+  service_fee: number;
+  taxes: number;
+  total_price: number;
+  guest_email?: string;
+  guest_phone?: string;
+  special_requests?: string;
 }
 
-export interface BookingDetails extends BookingData {
-  id: number;
-  nights: number;
-  totalAmount: number;
-  cleaningFee: number;
-  serviceFee: number;
+export interface Booking extends BookingData {
+  id: string;
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
-  paymentStatus: 'pending' | 'paid' | 'refunded';
-  createdAt: string;
-  propertyTitle?: string;
-  propertyImage?: string;
-  propertyLocation?: string;
+  confirmation_code: string;
+  created_at: string;
+  updated_at: string;
+  cancelled_at?: string;
+  cancellation_reason?: string;
+  cancelled_by?: string;
 }
 
-// Verificar disponibilidad de fechas
+// Generar código de confirmación único
+export const generateConfirmationCode = (): string => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = 'ODH';
+  for (let i = 0; i < 7; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+};
+
+// Calcular número de noches entre dos fechas
+export const calculateNights = (checkIn: Date, checkOut: Date): number => {
+  const diffTime = checkOut.getTime() - checkIn.getTime();
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+};
+
+// Calcular precio total con desglose
+export const calculatePricing = (pricePerNight: number, nights: number) => {
+  const subtotal = pricePerNight * nights;
+  const serviceFee = Math.round(subtotal * 0.12); // 12% tarifa de servicio
+  const taxes = Math.round(subtotal * 0.05); // 5% impuestos
+  const total = subtotal + serviceFee + taxes;
+
+  return {
+    subtotal,
+    serviceFee,
+    taxes,
+    total,
+  };
+};
+
+// Verificar si las fechas están disponibles (no bloqueadas)
 export const checkAvailability = async (
   propertyId: number,
-  checkIn: string,
-  checkOut: string
-): Promise<boolean> => {
+  checkIn: Date,
+  checkOut: Date
+): Promise<{ available: boolean; blockedDates: string[] }> => {
   try {
-    // 1. Obtener fechas bloqueadas del alojamiento
-    const { data: property, error: propertyError } = await supabase
+    // Obtener las fechas bloqueadas de la propiedad
+    const { data: property, error } = await supabase
       .from('properties')
       .select('blocked_dates')
       .eq('id', propertyId)
       .single();
 
-    if (propertyError) throw propertyError;
+    if (error) throw error;
 
-    const blockedDates = property.blocked_dates || [];
-    const requestedDates = generateDateRange(checkIn, checkOut);
+    const blockedDates: string[] = property?.blocked_dates || [];
 
-    // 2. Verificar si alguna fecha está bloqueada
-    const hasBlockedDate = requestedDates.some(date => 
-      blockedDates.includes(date)
-    );
+    // Generar todas las fechas entre check-in y check-out
+    const requestedDates: string[] = [];
+    const currentDate = new Date(checkIn);
+    const endDate = new Date(checkOut);
 
-    if (hasBlockedDate) return false;
+    while (currentDate < endDate) {
+      requestedDates.push(currentDate.toISOString().split('T')[0]);
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
 
-    // 3. Verificar reservas existentes
-    const { data: existingBookings, error: bookingsError } = await supabase
-      .from('bookings')
-      .select('check_in, check_out')
-      .eq('property_id', propertyId)
-      .in('status', ['pending', 'confirmed'])
-      .or(`check_in.lte.${checkOut},check_out.gte.${checkIn}`);
+    // Verificar si alguna fecha solicitada está bloqueada
+    const conflictDates = requestedDates.filter(date => blockedDates.includes(date));
 
-    if (bookingsError) throw bookingsError;
-
-    return existingBookings.length === 0;
+    return {
+      available: conflictDates.length === 0,
+      blockedDates: conflictDates,
+    };
   } catch (error) {
     console.error('Error checking availability:', error);
+    throw error;
+  }
+};
+
+// Verificar si hay reservas existentes en esas fechas
+export const checkExistingBookings = async (
+  propertyId: number,
+  checkIn: Date,
+  checkOut: Date
+): Promise<boolean> => {
+  try {
+    const checkInStr = checkIn.toISOString().split('T')[0];
+    const checkOutStr = checkOut.toISOString().split('T')[0];
+
+    // Buscar reservas que se solapen con las fechas solicitadas
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('id')
+      .eq('property_id', propertyId)
+      .neq('status', 'cancelled')
+      .or(`check_in_date.lte.${checkOutStr},check_out_date.gte.${checkInStr}`);
+
+    if (error) throw error;
+
+    return data && data.length > 0;
+  } catch (error) {
+    console.error('Error checking existing bookings:', error);
     return false;
   }
 };
 
-// Calcular precio total
-export const calculateTotalPrice = (
-  pricePerNight: number,
-  nights: number
-): { subtotal: number; cleaningFee: number; serviceFee: number; total: number } => {
-  const subtotal = pricePerNight * nights;
-  const cleaningFee = Math.round(pricePerNight * 0.1); // 10% del precio por noche
-  const serviceFee = Math.round(subtotal * 0.05); // 5% de comisión
-  const total = subtotal + cleaningFee + serviceFee;
-
-  return { subtotal, cleaningFee, serviceFee, total };
-};
-
-// Crear nueva reserva
-export const createBooking = async (bookingData: BookingData): Promise<BookingDetails | null> => {
+// Crear una nueva reserva
+export const createBooking = async (bookingData: BookingData): Promise<Booking> => {
   try {
-    const nights = calculateNights(bookingData.checkIn, bookingData.checkOut);
-    const { subtotal, cleaningFee, serviceFee, total } = calculateTotalPrice(
-      bookingData.pricePerNight,
-      nights
-    );
+    const confirmationCode = generateConfirmationCode();
 
-    // 1. Verificar disponibilidad antes de crear
-    const isAvailable = await checkAvailability(
-      bookingData.propertyId,
-      bookingData.checkIn,
-      bookingData.checkOut
-    );
-
-    if (!isAvailable) {
-      throw new Error('Las fechas seleccionadas no están disponibles');
-    }
-
-    // 2. Crear la reserva
-    const { data: booking, error: bookingError } = await supabase
+    const { data, error } = await supabase
       .from('bookings')
-      .insert([{
-        property_id: bookingData.propertyId,
-        guest_name: bookingData.guestName,
-        guest_email: bookingData.guestEmail,
-        guest_phone: bookingData.guestPhone,
-        guest_document: bookingData.guestDocument,
-        check_in: bookingData.checkIn,
-        check_out: bookingData.checkOut,
-        nights,
-        adults: bookingData.adults,
-        children: bookingData.children,
-        price_per_night: bookingData.pricePerNight,
-        total_amount: total,
-        cleaning_fee: cleaningFee,
-        service_fee: serviceFee,
-        special_requests: bookingData.specialRequests,
-        status: 'pending',
-        payment_status: 'pending',
-      }])
+      .insert({
+        ...bookingData,
+        status: 'confirmed', // Auto-confirmar para simplificar
+        confirmation_code: confirmationCode,
+      })
       .select()
       .single();
 
-    if (bookingError) throw bookingError;
+    if (error) throw error;
 
-    // 3. Bloquear fechas en el calendario
-    await blockDates(bookingData.propertyId, bookingData.checkIn, bookingData.checkOut);
+    // Actualizar las fechas bloqueadas de la propiedad
+    await blockDatesForBooking(
+      bookingData.property_id,
+      new Date(bookingData.check_in_date),
+      new Date(bookingData.check_out_date)
+    );
 
-    return booking as BookingDetails;
+    return data as Booking;
   } catch (error) {
     console.error('Error creating booking:', error);
     throw error;
   }
 };
 
-// Bloquear fechas en el calendario
-const blockDates = async (propertyId: number, checkIn: string, checkOut: string) => {
+// Bloquear fechas después de una reserva
+export const blockDatesForBooking = async (
+  propertyId: number,
+  checkIn: Date,
+  checkOut: Date
+): Promise<void> => {
   try {
-    // 1. Obtener fechas bloqueadas actuales
-    const { data: property } = await supabase
+    // Obtener fechas bloqueadas actuales
+    const { data: property, error: fetchError } = await supabase
       .from('properties')
       .select('blocked_dates')
       .eq('id', propertyId)
       .single();
 
-    const currentBlockedDates = property?.blocked_dates || [];
-    const newBlockedDates = generateDateRange(checkIn, checkOut);
+    if (fetchError) throw fetchError;
+
+    const currentBlockedDates: string[] = property?.blocked_dates || [];
+
+    // Generar nuevas fechas a bloquear
+    const newBlockedDates: string[] = [];
+    const currentDate = new Date(checkIn);
+    const endDate = new Date(checkOut);
+
+    while (currentDate < endDate) {
+      const dateStr = currentDate.toISOString().split('T')[0];
+      if (!currentBlockedDates.includes(dateStr)) {
+        newBlockedDates.push(dateStr);
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Combinar y actualizar
     const updatedBlockedDates = [...currentBlockedDates, ...newBlockedDates];
 
-    // 2. Actualizar fechas bloqueadas
-    await supabase
+    const { error: updateError } = await supabase
       .from('properties')
       .update({ blocked_dates: updatedBlockedDates })
       .eq('id', propertyId);
+
+    if (updateError) throw updateError;
   } catch (error) {
     console.error('Error blocking dates:', error);
+    throw error;
   }
 };
 
-// Desbloquear fechas (al cancelar)
-const unblockDates = async (propertyId: number, checkIn: string, checkOut: string) => {
+// Desbloquear fechas cuando se cancela una reserva
+export const unblockDatesForBooking = async (
+  propertyId: number,
+  checkIn: Date,
+  checkOut: Date
+): Promise<void> => {
   try {
-    const { data: property } = await supabase
+    // Obtener fechas bloqueadas actuales
+    const { data: property, error: fetchError } = await supabase
       .from('properties')
       .select('blocked_dates')
       .eq('id', propertyId)
       .single();
 
-    const currentBlockedDates = property?.blocked_dates || [];
-    const datesToUnblock = generateDateRange(checkIn, checkOut);
+    if (fetchError) throw fetchError;
+
+    const currentBlockedDates: string[] = property?.blocked_dates || [];
+
+    // Generar fechas a desbloquear
+    const datesToUnblock: string[] = [];
+    const currentDate = new Date(checkIn);
+    const endDate = new Date(checkOut);
+
+    while (currentDate < endDate) {
+      datesToUnblock.push(currentDate.toISOString().split('T')[0]);
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Filtrar las fechas que se deben mantener bloqueadas
     const updatedBlockedDates = currentBlockedDates.filter(
-      (date: string) => !datesToUnblock.includes(date)
+      date => !datesToUnblock.includes(date)
     );
 
-    await supabase
+    const { error: updateError } = await supabase
       .from('properties')
       .update({ blocked_dates: updatedBlockedDates })
       .eq('id', propertyId);
+
+    if (updateError) throw updateError;
   } catch (error) {
     console.error('Error unblocking dates:', error);
+    throw error;
   }
 };
 
-// Obtener todas las reservas de un usuario (por email)
-export const getUserBookings = async (guestEmail: string): Promise<BookingDetails[]> => {
-  try {
-    const { data: bookings, error } = await supabase
-      .from('bookings')
-      .select(`
-        *,
-        properties:property_id (
-          id,
-          title,
-          location,
-          images
-        )
-      `)
-      .eq('guest_email', guestEmail)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-
-    return bookings.map((booking: any) => ({
-      ...booking,
-      propertyTitle: booking.properties?.title,
-      propertyImage: booking.properties?.images?.[0],
-      propertyLocation: booking.properties?.location,
-    }));
-  } catch (error) {
-    console.error('Error fetching bookings:', error);
-    return [];
-  }
-};
-
-// Cancelar reserva
+// Cancelar una reserva
 export const cancelBooking = async (
-  bookingId: number,
-  cancellationReason?: string
-): Promise<boolean> => {
+  bookingId: string,
+  cancelledBy: string,
+  reason?: string
+): Promise<void> => {
   try {
-    // 1. Obtener detalles de la reserva
-    const { data: booking } = await supabase
+    // Obtener la reserva actual
+    const { data: booking, error: fetchError } = await supabase
       .from('bookings')
-      .select('property_id, check_in, check_out')
+      .select('property_id, check_in_date, check_out_date')
       .eq('id', bookingId)
       .single();
 
-    if (!booking) return false;
+    if (fetchError) throw fetchError;
 
-    // 2. Actualizar estado de la reserva
+    // Actualizar el estado de la reserva
     const { error: updateError } = await supabase
       .from('bookings')
       .update({
         status: 'cancelled',
         cancelled_at: new Date().toISOString(),
-        cancellation_reason: cancellationReason,
+        cancelled_by: cancelledBy,
+        cancellation_reason: reason,
       })
       .eq('id', bookingId);
 
     if (updateError) throw updateError;
 
-    // 3. Desbloquear fechas en el calendario
-    await unblockDates(booking.property_id, booking.check_in, booking.check_out);
-
-    return true;
+    // Desbloquear las fechas
+    await unblockDatesForBooking(
+      booking.property_id,
+      new Date(booking.check_in_date),
+      new Date(booking.check_out_date)
+    );
   } catch (error) {
     console.error('Error cancelling booking:', error);
-    return false;
+    throw error;
   }
 };
 
-// Confirmar reserva (cuando se paga)
-export const confirmBooking = async (bookingId: number): Promise<boolean> => {
+// Confirmar una reserva pendiente
+export const confirmBooking = async (bookingId: string): Promise<void> => {
   try {
     const { error } = await supabase
       .from('bookings')
-      .update({
-        status: 'confirmed',
-        payment_status: 'paid',
-        confirmed_at: new Date().toISOString(),
-      })
+      .update({ status: 'confirmed' })
       .eq('id', bookingId);
 
-    return !error;
+    if (error) throw error;
   } catch (error) {
     console.error('Error confirming booking:', error);
-    return false;
+    throw error;
   }
 };
 
-// Utilidades
-const generateDateRange = (startDate: string, endDate: string): string[] => {
-  const dates: string[] = [];
-  const current = new Date(startDate);
-  const end = new Date(endDate);
+// Obtener reservas de un huésped
+export const getGuestBookings = async (guestId: string): Promise<Booking[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('bookings')
+      .select(`
+        *,
+        property:properties(id, title, images, location, city)
+      `)
+      .eq('guest_id', guestId)
+      .order('created_at', { ascending: false });
 
-  while (current < end) {
-    dates.push(current.toISOString().split('T')[0]);
-    current.setDate(current.getDate() + 1);
+    if (error) throw error;
+    return data as Booking[];
+  } catch (error) {
+    console.error('Error fetching guest bookings:', error);
+    throw error;
   }
-
-  return dates;
 };
 
-const calculateNights = (checkIn: string, checkOut: string): number => {
-  const start = new Date(checkIn);
-  const end = new Date(checkOut);
-  const diffTime = Math.abs(end.getTime() - start.getTime());
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+// Obtener reservas para un anfitrión (de todas sus propiedades)
+export const getHostBookings = async (hostId: string): Promise<Booking[]> => {
+  try {
+    // Primero obtener las propiedades del host
+    const { data: properties, error: propsError } = await supabase
+      .from('properties')
+      .select('id')
+      .eq('owner_id', hostId);
+
+    if (propsError) throw propsError;
+
+    const propertyIds = properties.map(p => p.id);
+
+    if (propertyIds.length === 0) return [];
+
+    // Obtener las reservas de esas propiedades
+    const { data, error } = await supabase
+      .from('bookings')
+      .select(`
+        *,
+        property:properties(id, title, images, location),
+        guest:profiles!guest_id(id, full_name, avatar_url, phone, email)
+      `)
+      .in('property_id', propertyIds)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data as Booking[];
+  } catch (error) {
+    console.error('Error fetching host bookings:', error);
+    throw error;
+  }
 };
 
+// Obtener detalle de una reserva
+export const getBookingById = async (bookingId: string): Promise<Booking | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('bookings')
+      .select(`
+        *,
+        property:properties(id, title, images, location, city, department, price, amenities),
+        guest:profiles!guest_id(id, full_name, avatar_url, phone, email)
+      `)
+      .eq('id', bookingId)
+      .single();
+
+    if (error) throw error;
+    return data as Booking;
+  } catch (error) {
+    console.error('Error fetching booking:', error);
+    return null;
+  }
+};
+
+// Formatear fecha para mostrar
 export const formatDate = (dateString: string): string => {
   const date = new Date(dateString);
-  return date.toLocaleDateString('es-CO', {
+  return date.toLocaleDateString('es-ES', {
     weekday: 'short',
-    year: 'numeric',
+    day: '2-digit',
     month: 'short',
-    day: 'numeric',
+    year: 'numeric',
   });
 };
 
-export const getBookingStatusText = (status: string): string => {
-  const statusMap: Record<string, string> = {
-    pending: 'Pendiente',
-    confirmed: 'Confirmada',
-    cancelled: 'Cancelada',
-    completed: 'Completada',
-  };
-  return statusMap[status] || status;
-};
-
-export const getBookingStatusColor = (status: string): string => {
-  const colorMap: Record<string, string> = {
-    pending: '#FFA500',
-    confirmed: '#4CAF50',
-    cancelled: '#F44336',
-    completed: '#2196F3',
-  };
-  return colorMap[status] || '#999';
+// Formatear precio con separadores de miles
+export const formatPrice = (price: number): string => {
+  return price.toLocaleString('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
 };

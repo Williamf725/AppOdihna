@@ -18,7 +18,6 @@ export default function RoleSelectionScreen() {
         <View style={styles.header}>
           <View style={styles.logoContainer}>
             <ThemedText style={styles.logoOdihna}>ODIHNA</ThemedText>
-            <ThemedText style={styles.logoLiving}> LIVING</ThemedText>
           </View>
           <ThemedText style={styles.subtitle}>
             Encuentra tu escape perfecto
@@ -28,7 +27,7 @@ export default function RoleSelectionScreen() {
         {/* Pregunta principal */}
         <View style={styles.content}>
           <ThemedText style={styles.question}>
-            ¿Cómo quieres usar Odihna Living?
+            ¿Cómo quieres usar Odihna?
           </ThemedText>
 
           {/* Opción Huésped */}

@@ -2,6 +2,7 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { categories, Property } from '@/constants/mockData';
+import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -25,19 +26,22 @@ import {
 const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
+  // Auth
+  const { profile } = useAuth();
+
   // Estados de búsqueda
   const [checkIn, setCheckIn] = useState<Date | null>(null);
   const [checkOut, setCheckOut] = useState<Date | null>(null);
   const [adults, setAdults] = useState(2);
   const [children, setChildren] = useState(0);
   const [rooms, setRooms] = useState(1);
-  
+
   // Estados de modales
   const [guestsModalVisible, setGuestsModalVisible] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const [showCheckInPicker, setShowCheckInPicker] = useState(false);
   const [showCheckOutPicker, setShowCheckOutPicker] = useState(false);
-  
+
   // Estados para búsqueda y filtrado
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('todos');
@@ -113,7 +117,7 @@ export default function HomeScreen() {
 
     const searchDates: string[] = [];
     const current = new Date(checkInDate);
-    
+
     while (current <= checkOutDate) {
       const dateString = current.toISOString().split('T')[0];
       searchDates.push(dateString);
@@ -253,7 +257,6 @@ export default function HomeScreen() {
           </TouchableOpacity>
           <View style={styles.logoContainer}>
             <ThemedText style={styles.logoOdihna}>ODIHNA</ThemedText>
-            <ThemedText style={styles.logoLiving}> LIVING</ThemedText>
           </View>
           <ThemedText style={styles.subtitle}>Encuentra tu escape perfecto</ThemedText>
         </View>
@@ -579,6 +582,7 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </View>
 
+            {/* Mi Perfil - Para todos */}
             <TouchableOpacity
               style={styles.menuItem}
               onPress={() => {
@@ -590,28 +594,63 @@ export default function HomeScreen() {
               <ThemedText style={styles.menuItemText}>Mi Perfil</ThemedText>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                setMenuVisible(false);
-                router.push('/sube-alojamiento');
-              }}
-            >
-              <Ionicons name="add-circle-outline" size={24} color="#2C5F7C" />
-              <ThemedText style={styles.menuItemText}>Publicar Alojamiento</ThemedText>
-            </TouchableOpacity>
+            {/* Mis Reservas - Solo para huéspedes (aparece cuando NO es host) */}
+            {profile?.role !== 'host' && (
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  setMenuVisible(false);
+                  router.push('/mis-reservas');
+                }}
+              >
+                <Ionicons name="calendar-outline" size={24} color="#2C5F7C" />
+                <ThemedText style={styles.menuItemText}>Mis Reservas</ThemedText>
+              </TouchableOpacity>
+            )}
 
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                setMenuVisible(false);
-                router.push('/mis-alojamientos');
-              }}
-            >
-              <Ionicons name="list-outline" size={24} color="#2C5F7C" />
-              <ThemedText style={styles.menuItemText}>Gestionar Mis Alojamientos</ThemedText>
-            </TouchableOpacity>
+            {/* Publicar Alojamiento - Solo para anfitriones */}
+            {profile?.role === 'host' && (
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  setMenuVisible(false);
+                  router.push('/sube-alojamiento');
+                }}
+              >
+                <Ionicons name="add-circle-outline" size={24} color="#2C5F7C" />
+                <ThemedText style={styles.menuItemText}>Publicar Alojamiento</ThemedText>
+              </TouchableOpacity>
+            )}
 
+            {/* Gestionar Mis Alojamientos - Solo para anfitriones */}
+            {profile?.role === 'host' && (
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  setMenuVisible(false);
+                  router.push('/mis-alojamientos');
+                }}
+              >
+                <Ionicons name="list-outline" size={24} color="#2C5F7C" />
+                <ThemedText style={styles.menuItemText}>Gestionar Mis Alojamientos</ThemedText>
+              </TouchableOpacity>
+            )}
+
+            {/* Gestionar Reservas - Solo para anfitriones */}
+            {profile?.role === 'host' && (
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  setMenuVisible(false);
+                  router.push('/gestionar-reservas');
+                }}
+              >
+                <Ionicons name="receipt-outline" size={24} color="#D4AF37" />
+                <ThemedText style={styles.menuItemText}>Gestionar Reservas</ThemedText>
+              </TouchableOpacity>
+            )}
+
+            {/* Finca Raíz y Remodelaciones - Para todos */}
             <TouchableOpacity
               style={styles.menuItem}
               onPress={() => {
@@ -623,6 +662,7 @@ export default function HomeScreen() {
               <ThemedText style={styles.menuItemText}>Finca Raíz y Remodelaciones</ThemedText>
             </TouchableOpacity>
 
+            {/* Trabaja con Nosotros - Para todos */}
             <TouchableOpacity
               style={styles.menuItem}
               onPress={() => {

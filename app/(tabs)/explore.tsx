@@ -262,7 +262,6 @@ export default function ExploreScreen() {
         <View style={styles.headerBlack}>
           <View style={styles.logoContainer}>
             <ThemedText style={styles.logoOdihna}>ODIHNA</ThemedText>
-            <ThemedText style={styles.logoLiving}> LIVING</ThemedText>
           </View>
           <ThemedText style={styles.subtitle}>Explora alojamientos increíbles</ThemedText>
         </View>

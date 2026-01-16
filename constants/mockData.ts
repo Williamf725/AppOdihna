@@ -22,6 +22,20 @@ export interface Property {
     name: string;
     joinedDate: string;
     avatar: any;
+    id?: string;
+    email?: string;
+    phone?: string;
+    verified?: boolean;
+    properties?: number;
+    reviewsReceived?: number;
+    rating?: number;
+    bio?: string;
+    responseTime?: string;
+    responseRate?: string;
+    languages?: string[];
+    interests?: string[];
+    location?: string;
+    whatsappNumber?: string;
   };
   reviews: Review[]; // Asegúrate que sea Review[] con R mayúscula
 }

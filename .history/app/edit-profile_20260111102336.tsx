@@ -1,7 +1,7 @@
 // app/edit-profile.tsx
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
@@ -22,7 +22,7 @@ import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 
 export default function EditProfileScreen() {
-  const { user, profile, refreshProfile } = useAuth();
+  const { user, profile } = useAuth();
   
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
@@ -36,7 +36,7 @@ export default function EditProfileScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
-  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [selectedYear, setSelectedYear | null>(null);
 
   // ✅ Cargar datos del perfil al iniciar
   useEffect(() => {
@@ -86,7 +86,7 @@ export default function EditProfileScreen() {
 
   const getDisplayBirthDate = (): string => {
     if (selectedYear && selectedMonth && selectedDay) {
-      const monthName = months.find(m => m.value === selectedMonth)?.label || '';
+      const monthName = months.find(m => m.value === selectedMonth)?.label;
       return `${selectedDay} de ${monthName} de ${selectedYear}`;
     }
     return 'Seleccionar fecha';
@@ -102,7 +102,7 @@ export default function EditProfileScreen() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -124,6 +124,7 @@ export default function EditProfileScreen() {
 
       const timestamp = Date.now();
       const fileName = `avatar_${user?.id}_${timestamp}.jpg`;
+      const filePath = `avatars/${fileName}`;
 
       const response = await fetch(imageUri);
       const blob = await response.blob();
@@ -142,7 +143,7 @@ export default function EditProfileScreen() {
         }
       }
 
-      const { error } = await supabase.storage
+      const { data, error } = await supabase.storage
         .from('avatars')
         .upload(fileName, arrayBuffer, {
           contentType: 'image/jpeg',
@@ -165,7 +166,7 @@ export default function EditProfileScreen() {
     }
   };
 
-  // ✅ Guardar cambios
+  // ✅ FUNCIÓN CORREGIDA: Guardar cambios
   const handleSave = async () => {
     if (!fullName.trim()) {
       Alert.alert('Error', 'El nombre es obligatorio');
@@ -182,6 +183,7 @@ export default function EditProfileScreen() {
     try {
       let finalAvatarUrl = avatarUri;
 
+      // Subir nueva foto si cambió
       if (avatarUri && avatarUri !== profile?.avatar_url && !avatarUri.includes('supabase.co')) {
         console.log('📤 Subiendo nueva foto de perfil...');
         const uploadedUrl = await uploadAvatar(avatarUri);
@@ -202,25 +204,24 @@ export default function EditProfileScreen() {
 
       console.log('💾 Guardando perfil:', updateData);
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .update(updateData)
-        .eq('id', user?.id);
+        .eq('id', user?.id)
+        .select(); // ✅ IMPORTANTE: Agregar .select() para verificar
 
       if (error) {
         console.error('❌ Error de Supabase:', error);
         throw error;
       }
 
-      console.log('✅ Perfil actualizado correctamente');
+      console.log('✅ Perfil actualizado en DB:', data);
 
       Alert.alert('¡Éxito!', 'Tu perfil ha sido actualizado correctamente', [
         { 
           text: 'OK', 
-          onPress: async () => {
-            if (refreshProfile) {
-              await refreshProfile();
-            }
+          onPress: () => {
+            // ✅ Recargar la app para reflejar cambios
             router.back();
           }
         },
@@ -304,10 +305,7 @@ export default function EditProfileScreen() {
                 disabled={saving}
               >
                 <Ionicons name="calendar-outline" size={20} color="#64748B" />
-                <Text style={[
-                  styles.datePickerText, 
-                  (selectedYear && selectedMonth && selectedDay) ? styles.datePickerTextFilled : null
-                ]}>
+                <Text style={[styles.datePickerText, (selectedYear && selectedMonth && selectedDay) && styles.datePickerTextFilled]}>
                   {getDisplayBirthDate()}
                 </Text>
                 <Ionicons name="chevron-down" size={20} color="#64748B" />
@@ -351,7 +349,7 @@ export default function EditProfileScreen() {
                 editable={!saving}
                 maxLength={500}
               />
-              <Text style={styles.hint}>{(bio || '').length}/500 caracteres</Text>
+              <Text style={styles.hint}>{bio.length}/500 caracteres</Text>
             </View>
           </View>
 
@@ -378,7 +376,7 @@ export default function EditProfileScreen() {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Correo electrónico</Text>
               <View style={styles.readOnlyInput}>
-                <Text style={styles.readOnlyText}>{user?.email || ''}</Text>
+                <Text style={styles.readOnlyText}>{user?.email}</Text>
                 <Ionicons name="lock-closed" size={16} color="#94A3B8" />
               </View>
               <Text style={styles.hint}>El correo no se puede cambiar</Text>
@@ -425,10 +423,10 @@ export default function EditProfileScreen() {
                   {days.map((day) => (
                     <TouchableOpacity
                       key={day}
-                      style={[styles.pickerItem, selectedDay === day ? styles.pickerItemSelected : null]}
+                      style={[styles.pickerItem, selectedDay === day && styles.pickerItemSelected]}
                       onPress={() => setSelectedDay(day)}
                     >
-                      <Text style={[styles.pickerItemText, selectedDay === day ? styles.pickerItemTextSelected : null]}>
+                      <Text style={[styles.pickerItemText, selectedDay === day && styles.pickerItemTextSelected]}>
                         {day}
                       </Text>
                     </TouchableOpacity>
@@ -443,10 +441,10 @@ export default function EditProfileScreen() {
                   {months.map((month) => (
                     <TouchableOpacity
                       key={month.value}
-                      style={[styles.pickerItem, selectedMonth === month.value ? styles.pickerItemSelected : null]}
+                      style={[styles.pickerItem, selectedMonth === month.value && styles.pickerItemSelected]}
                       onPress={() => setSelectedMonth(month.value)}
                     >
-                      <Text style={[styles.pickerItemText, selectedMonth === month.value ? styles.pickerItemTextSelected : null]}>
+                      <Text style={[styles.pickerItemText, selectedMonth === month.value && styles.pickerItemTextSelected]}>
                         {month.label}
                       </Text>
                     </TouchableOpacity>
@@ -461,10 +459,10 @@ export default function EditProfileScreen() {
                   {years.map((year) => (
                     <TouchableOpacity
                       key={year}
-                      style={[styles.pickerItem, selectedYear === year ? styles.pickerItemSelected : null]}
+                      style={[styles.pickerItem, selectedYear === year && styles.pickerItemSelected]}
                       onPress={() => setSelectedYear(year)}
                     >
-                      <Text style={[styles.pickerItemText, selectedYear === year ? styles.pickerItemTextSelected : null]}>
+                      <Text style={[styles.pickerItemText, selectedYear === year && styles.pickerItemTextSelected]}>
                         {year}
                       </Text>
                     </TouchableOpacity>

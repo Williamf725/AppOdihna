@@ -52,14 +52,14 @@ function SubeAlojamientoContent() {
 
   // Categorías disponibles para tags
   const tagOptions = [
-    "cabaña", "lago", "montaña", "romantico", "familiar", "playa", 
+    "cabaña", "lago", "montaña", "romantico", "familiar", "playa",
     "ciudad", "naturaleza", "bosque", "lujo"
   ];
 
   // Función para seleccionar imágenes
   const pickImages = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
+
     if (status !== 'granted') {
       Alert.alert('Permiso requerido', 'Necesitamos acceso a tu galería para subir fotos');
       return;
@@ -193,93 +193,93 @@ function SubeAlojamientoContent() {
 
   // Función para guardar alojamiento en Supabase
   // Función para guardar alojamiento en Supabase
-const handleSubmit = async () => {
-  if (!validateForm()) return;
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
 
-  // Verificar que haya un usuario autenticado
-  if (!user) {
-    Alert.alert('Error', 'Debes iniciar sesión para publicar un alojamiento');
-    return;
-  }
-
-  setUploading(true);
-
-  try {
-    // 1. Subir imágenes
-    console.log('Subiendo imágenes...');
-    const uploadedImageUrls = await uploadImages();
-    console.log('Imágenes subidas:', uploadedImageUrls);
-
-    // 2. Guardar propiedad en la base de datos
-    console.log('Guardando propiedad...');
-    const { data, error } = await supabase
-      .from('properties')
-      .insert([
-        {
-          title: title.trim(),
-          description: description.trim(),
-          location: `${city}, ${department}`,
-          city: city.trim(),
-          department: department,
-          price: Number(price),
-          rating: 5.0,
-          review_count: 0,
-          images: uploadedImageUrls,
-          amenities: selectedAmenities,
-          tags: selectedTags,
-          max_guests: maxGuests,
-          bedrooms: bedrooms,
-          host_name: 'Mariana Peña',
-          owner_id: user.id, // ⭐ AGREGAR ESTA LÍNEA
-          blocked_dates: [], // ⭐ AGREGAR ESTA LÍNEA
-        }
-      ])
-      .select();
-
-    if (error) {
-      console.error('Database error:', error);
-      throw error;
+    // Verificar que haya un usuario autenticado
+    if (!user) {
+      Alert.alert('Error', 'Debes iniciar sesión para publicar un alojamiento');
+      return;
     }
 
-    console.log('Propiedad guardada:', data);
-    setUploading(false);
+    setUploading(true);
 
-    Alert.alert(
-      '¡Éxito!', 
-      'Tu alojamiento ha sido publicado correctamente',
-      [
-        {
-          text: 'Ver alojamiento',
-          onPress: () => router.replace(`/${data[0].id}`)
-        },
-        {
-          text: 'Ir al inicio',
-          onPress: () => router.replace('/(tabs)')
-        }
-      ]
-    );
+    try {
+      // 1. Subir imágenes
+      console.log('Subiendo imágenes...');
+      const uploadedImageUrls = await uploadImages();
+      console.log('Imágenes subidas:', uploadedImageUrls);
 
-    // Limpiar formulario
-    setTitle('');
-    setDescription('');
-    setPrice('');
-    setCity('');
-    setDepartment('');
-    setSelectedAmenities([]);
-    setImages([]);
-    setBedrooms(1);
-    setMaxGuests(2);
-    setSelectedTags([]);
+      // 2. Guardar propiedad en la base de datos
+      console.log('Guardando propiedad...');
+      const { data, error } = await supabase
+        .from('properties')
+        .insert([
+          {
+            title: title.trim(),
+            description: description.trim(),
+            location: `${city}, ${department}`,
+            city: city.trim(),
+            department: department,
+            price: Number(price),
+            rating: 5.0,
+            review_count: 0,
+            images: uploadedImageUrls,
+            amenities: selectedAmenities,
+            tags: selectedTags,
+            max_guests: maxGuests,
+            bedrooms: bedrooms,
+            // host_name ya no es necesario, se obtiene del perfil
+            owner_id: user.id,
+            blocked_dates: [],
+          }
+        ])
+        .select();
 
-  } catch (error: any) {
-    setUploading(false);
-    console.error('Error submitting property:', error);
-    Alert.alert(
-      'Error', 
-      `Hubo un problema al publicar tu alojamiento: ${error.message || 'Por favor intenta de nuevo.'}`
-    );
-  }
-};
+      if (error) {
+        console.error('Database error:', error);
+        throw error;
+      }
+
+      console.log('Propiedad guardada:', data);
+      setUploading(false);
+
+      Alert.alert(
+        '¡Éxito!',
+        'Tu alojamiento ha sido publicado correctamente',
+        [
+          {
+            text: 'Ver alojamiento',
+            onPress: () => router.replace(`/${data[0].id}`)
+          },
+          {
+            text: 'Ir al inicio',
+            onPress: () => router.replace('/(tabs)')
+          }
+        ]
+      );
+
+      // Limpiar formulario
+      setTitle('');
+      setDescription('');
+      setPrice('');
+      setCity('');
+      setDepartment('');
+      setSelectedAmenities([]);
+      setImages([]);
+      setBedrooms(1);
+      setMaxGuests(2);
+      setSelectedTags([]);
+
+    } catch (error: any) {
+      setUploading(false);
+      console.error('Error submitting property:', error);
+      Alert.alert(
+        'Error',
+        `Hubo un problema al publicar tu alojamiento: ${error.message || 'Por favor intenta de nuevo.'}`
+      );
+    }
+  };
 
 
   return (
@@ -344,7 +344,7 @@ const handleSubmit = async () => {
         {/* Ubicación */}
         <View style={styles.section}>
           <ThemedText style={styles.sectionTitle}>Ubicación</ThemedText>
-          
+
           <TextInput
             style={[styles.input, styles.marginBottom]}
             placeholder="Ciudad"
@@ -354,7 +354,7 @@ const handleSubmit = async () => {
             editable={!uploading}
           />
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.selectButton}
             onPress={() => setShowDepartmentModal(true)}
             disabled={uploading}
@@ -372,10 +372,10 @@ const handleSubmit = async () => {
           <ThemedText style={styles.sectionSubtitle}>
             Sube hasta 10 fotos (mínimo 1)
           </ThemedText>
-          
+
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imagesScroll}>
-            <TouchableOpacity 
-              style={styles.addImageButton} 
+            <TouchableOpacity
+              style={styles.addImageButton}
               onPress={pickImages}
               disabled={uploading}
             >
@@ -387,7 +387,7 @@ const handleSubmit = async () => {
               <View key={index} style={styles.imageContainer}>
                 <Image source={{ uri }} style={styles.uploadedImage} />
                 {!uploading && (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.removeImageButton}
                     onPress={() => removeImage(index)}
                   >
@@ -402,12 +402,12 @@ const handleSubmit = async () => {
         {/* Habitaciones y Huéspedes */}
         <View style={styles.section}>
           <ThemedText style={styles.sectionTitle}>Capacidad</ThemedText>
-          
+
           <View style={styles.capacityRow}>
             <View style={styles.capacityItem}>
               <ThemedText style={styles.capacityLabel}>Habitaciones</ThemedText>
               <View style={styles.counterContainer}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.counterButton}
                   onPress={() => setBedrooms(Math.max(1, bedrooms - 1))}
                   disabled={uploading}
@@ -415,7 +415,7 @@ const handleSubmit = async () => {
                   <Ionicons name="remove" size={20} color="#2C5F7C" />
                 </TouchableOpacity>
                 <ThemedText style={styles.counterValue}>{bedrooms}</ThemedText>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.counterButton}
                   onPress={() => setBedrooms(bedrooms + 1)}
                   disabled={uploading}
@@ -428,7 +428,7 @@ const handleSubmit = async () => {
             <View style={styles.capacityItem}>
               <ThemedText style={styles.capacityLabel}>Huéspedes máx.</ThemedText>
               <View style={styles.counterContainer}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.counterButton}
                   onPress={() => setMaxGuests(Math.max(1, maxGuests - 1))}
                   disabled={uploading}
@@ -436,7 +436,7 @@ const handleSubmit = async () => {
                   <Ionicons name="remove" size={20} color="#2C5F7C" />
                 </TouchableOpacity>
                 <ThemedText style={styles.counterValue}>{maxGuests}</ThemedText>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.counterButton}
                   onPress={() => setMaxGuests(maxGuests + 1)}
                   disabled={uploading}
@@ -493,10 +493,10 @@ const handleSubmit = async () => {
                 onPress={() => toggleAmenity(amenity.name)}
                 disabled={uploading}
               >
-                <Ionicons 
-                  name={amenity.icon as any} 
-                  size={24} 
-                  color={selectedAmenities.includes(amenity.name) ? '#fff' : '#2C5F7C'} 
+                <Ionicons
+                  name={amenity.icon as any}
+                  size={24}
+                  color={selectedAmenities.includes(amenity.name) ? '#fff' : '#2C5F7C'}
                 />
                 <ThemedText style={[
                   styles.amenityName,
@@ -505,10 +505,10 @@ const handleSubmit = async () => {
                   {amenity.name}
                 </ThemedText>
                 {selectedAmenities.includes(amenity.name) && (
-                  <Ionicons 
-                    name="checkmark-circle" 
-                    size={20} 
-                    color="#fff" 
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={20}
+                    color="#fff"
                     style={styles.checkmark}
                   />
                 )}
@@ -518,8 +518,8 @@ const handleSubmit = async () => {
         </View>
 
         {/* Botón de publicar */}
-        <TouchableOpacity 
-          style={[styles.submitButton, uploading && styles.submitButtonDisabled]} 
+        <TouchableOpacity
+          style={[styles.submitButton, uploading && styles.submitButtonDisabled]}
           onPress={handleSubmit}
           disabled={uploading}
         >
