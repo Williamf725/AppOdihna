@@ -59,8 +59,8 @@ export default function LoginScreen() {
         style={styles.backgroundImage}
         contentFit="cover"
       />
-      <LinearGradient colors={['rgba(0,0,0,0.6)', 'rgba(0,0,0,0.85)']} style={styles.overlay}>
-        <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <LinearGradient colors={['rgba(0,0,0,0.2)', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.75)']} locations={[0, 0.5, 1]} style={styles.overlay}>
+        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.replace('/')}

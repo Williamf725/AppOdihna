@@ -1,4 +1,5 @@
 // app/auth/callback.tsx
+import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
@@ -14,24 +15,41 @@ export default function CallbackScreen() {
 
   const handleEmailConfirmation = async () => {
     try {
-      // ✅ Obtener el hash de la URL (contiene el token)
-      const hash = window?.location?.hash || '';
-      
-      if (!hash) {
+      // ✅ Obtener la URL inicial usando expo-linking (funciona en React Native)
+      const initialUrl = await Linking.getInitialURL();
+      console.log('📱 URL inicial del callback:', initialUrl);
+
+      if (!initialUrl) {
+        // Verificar si ya hay una sesión activa (el link ya procesó)
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          console.log('✅ Sesión ya existente, redirigiendo...');
+          setStatus('success');
+          setMessage('¡Ya estás autenticado! Redirigiendo...');
+          setTimeout(() => router.replace('/(tabs)'), 1500);
+          return;
+        }
         throw new Error('No se encontró token de verificación');
       }
 
-      // ✅ Extraer parámetros del hash
-      const params = new URLSearchParams(hash.substring(1));
+      // ✅ Extraer el fragmento hash de la URL
+      const hashIndex = initialUrl.indexOf('#');
+      if (hashIndex === -1) {
+        throw new Error('No se encontró token en la URL');
+      }
+
+      const hashParams = initialUrl.substring(hashIndex + 1);
+      const params = new URLSearchParams(hashParams);
+
       const accessToken = params.get('access_token');
       const refreshToken = params.get('refresh_token');
       const type = params.get('type');
 
       console.log('📧 Tipo de callback:', type);
 
-      // ✅ Verificar que sea confirmación de email
-      if (type !== 'signup' && type !== 'email') {
-        throw new Error('Tipo de verificación no válido');
+      // ✅ Verificar que sea confirmación de email o signup
+      if (type !== 'signup' && type !== 'email' && type !== 'magiclink') {
+        console.log('⚠️ Tipo no reconocido:', type);
       }
 
       if (!accessToken || !refreshToken) {

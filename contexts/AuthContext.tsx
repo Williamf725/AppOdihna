@@ -1,7 +1,6 @@
 // contexts/AuthContext.tsx
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Session, User } from '@supabase/supabase-js';
-import { router } from 'expo-router';
 import React, { createContext, useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 import { supabase } from '../lib/supabase';
@@ -136,7 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loadUserProfile = async (userId: string) => {
     try {
       console.log('📥 Cargando perfil para usuario:', userId);
-      
+
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -145,14 +144,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) {
         console.error('❌ Error loading profile:', error);
-        
+
         if (error.code === 'PGRST116') {
           console.log('⚠️ Perfil no encontrado, intentando crear...');
-          
+
           const { data: userData } = await supabase.auth.getUser();
           if (userData.user) {
             const currentYear = new Date().getFullYear();
-            
+
             const { error: insertError } = await supabase
               .from('profiles')
               .insert({
@@ -221,6 +220,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             phone: userData.phone,
             role: userData.role,
           },
+          emailRedirectTo: 'odihna-living://auth/callback', // ✅ Redirige a la app después de confirmar email
         },
       });
 
@@ -238,7 +238,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (user && session) {
         console.log('✅ Usuario registrado y autenticado automáticamente');
-        
+
         await new Promise(resolve => setTimeout(resolve, 1500));
 
         const { data: existingProfile } = await supabase
@@ -250,7 +250,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!existingProfile) {
           console.log('⚠️ Trigger no ejecutado, creando perfil manualmente...');
           const currentYear = new Date().getFullYear();
-          
+
           const { error: profileError } = await supabase
             .from('profiles')
             .insert({
@@ -313,28 +313,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('🔓 Iniciando cierre de sesión...');
 
+      // Limpiar estado local primero
       setUser(null);
       setProfile(null);
       setSession(null);
 
+      // Limpiar sesión almacenada
       await AsyncStorage.removeItem('supabase-session');
 
+      // Cerrar sesión en Supabase
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error('Error cerrando sesión en Supabase:', error);
       }
 
       console.log('✅ Sesión cerrada correctamente');
-
-      setTimeout(() => {
-        router.replace('/auth/login');
-      }, 100);
+      // ✅ La navegación se maneja desde el componente que llama a signOut
 
     } catch (error: any) {
       console.error('❌ Error en logout:', error);
-      setTimeout(() => {
-        router.replace('/auth/login');
-      }, 100);
+      // El estado ya fue limpiado, el componente manejará la navegación
     }
   };
 
@@ -354,4 +352,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
+}
+
+// ✅ Hook para usar el contexto de autenticación (para uso interno en _layout.tsx)
+export function useAuthContext() {
+  const context = React.useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuthContext must be used within an AuthProvider');
+  }
+  return context;
 }

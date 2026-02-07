@@ -154,6 +154,52 @@ export const createBooking = async (bookingData: BookingData): Promise<Booking> 
       new Date(bookingData.check_out_date)
     );
 
+    // ✅ NOTIFICACIONES: Enviar notificaciones a anfitrión y huésped
+    try {
+      // Obtener datos de la propiedad y su dueño
+      const { data: propertyData } = await supabase
+        .from('properties')
+        .select('title, owner_id')
+        .eq('id', bookingData.property_id)
+        .single();
+
+      // Obtener nombre del huésped
+      const { data: guestData } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', bookingData.guest_id)
+        .single();
+
+      if (propertyData && guestData) {
+        // Importar dinámicamente para evitar dependencia circular
+        const { notifyNewBooking, notifyBookingConfirmed } = await import('./notificationService');
+
+        // Notificar al anfitrión sobre nueva reserva
+        await notifyNewBooking(
+          propertyData.owner_id,
+          guestData.full_name || 'Huésped',
+          propertyData.title,
+          bookingData.check_in_date,
+          bookingData.check_out_date,
+          data.id,
+          confirmationCode
+        );
+
+        // Notificar al huésped sobre confirmación
+        await notifyBookingConfirmed(
+          bookingData.guest_id,
+          propertyData.title,
+          bookingData.check_in_date,
+          bookingData.check_out_date,
+          data.id,
+          confirmationCode
+        );
+      }
+    } catch (notifError) {
+      console.log('⚠️ Error enviando notificaciones (no crítico):', notifError);
+      // No lanzar error - las notificaciones son secundarias
+    }
+
     return data as Booking;
   } catch (error) {
     console.error('Error creating booking:', error);
@@ -259,10 +305,10 @@ export const cancelBooking = async (
   reason?: string
 ): Promise<void> => {
   try {
-    // Obtener la reserva actual
+    // Obtener la reserva actual con más información para notificaciones
     const { data: booking, error: fetchError } = await supabase
       .from('bookings')
-      .select('property_id, check_in_date, check_out_date')
+      .select('property_id, check_in_date, check_out_date, guest_id')
       .eq('id', bookingId)
       .single();
 
@@ -287,6 +333,56 @@ export const cancelBooking = async (
       new Date(booking.check_in_date),
       new Date(booking.check_out_date)
     );
+
+    // ✅ NOTIFICACIONES: Notificar a ambas partes sobre la cancelación
+    try {
+      // Obtener datos de la propiedad y anfitrión
+      const { data: propertyData } = await supabase
+        .from('properties')
+        .select('title, owner_id')
+        .eq('id', booking.property_id)
+        .single();
+
+      // Obtener nombre del huésped
+      const { data: guestData } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', booking.guest_id)
+        .single();
+
+      // Obtener nombre del anfitrión
+      const { data: hostData } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', propertyData?.owner_id)
+        .single();
+
+      if (propertyData && guestData) {
+        const { notifyCancellation } = await import('./notificationService');
+
+        // ✅ Notificar a AMBAS partes sobre la cancelación
+
+        // Notificar al anfitrión
+        await notifyCancellation(
+          propertyData.owner_id,
+          true, // isHost
+          guestData.full_name || 'Huésped',
+          propertyData.title,
+          bookingId
+        );
+
+        // Notificar al huésped
+        await notifyCancellation(
+          booking.guest_id,
+          false, // isHost
+          hostData?.full_name || 'Anfitrión',
+          propertyData.title,
+          bookingId
+        );
+      }
+    } catch (notifError) {
+      console.log('⚠️ Error enviando notificaciones de cancelación (no crítico):', notifError);
+    }
   } catch (error) {
     console.error('Error cancelling booking:', error);
     throw error;

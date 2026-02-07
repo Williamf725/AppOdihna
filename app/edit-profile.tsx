@@ -19,11 +19,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../hooks/useAuth';
+import { isCloudinaryConfigured, uploadImageToCloudinary } from '../lib/cloudinaryService';
 import { supabase } from '../lib/supabase';
 
 export default function EditProfileScreen() {
   const { user, profile, refreshProfile } = useAuth();
-  
+
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [bio, setBio] = useState('');
@@ -113,15 +114,30 @@ export default function EditProfileScreen() {
     }
   };
 
-  // Subir avatar a Supabase Storage
+  // Subir avatar (Cloudinary o Supabase Storage)
   const uploadAvatar = async (imageUri: string): Promise<string | null> => {
     try {
       setUploading(true);
 
-      if (imageUri.includes('supabase.co')) {
+      // Si ya es una URL remota, no resubir
+      if (imageUri.includes('supabase.co') || imageUri.includes('cloudinary.com')) {
         return imageUri;
       }
 
+      // Usar Cloudinary si está configurado
+      if (isCloudinaryConfigured()) {
+        console.log('☁️ Subiendo avatar a Cloudinary...');
+        const result = await uploadImageToCloudinary(imageUri, 'avatars');
+        if (result.success && result.url) {
+          console.log('✅ Avatar subido a Cloudinary:', result.url);
+          return result.url;
+        } else {
+          throw new Error(result.error || 'Error subiendo a Cloudinary');
+        }
+      }
+
+      // Fallback: Supabase Storage
+      console.log('📦 Subiendo avatar a Supabase Storage...');
       const timestamp = Date.now();
       const fileName = `avatar_${user?.id}_${timestamp}.jpg`;
 
@@ -215,8 +231,8 @@ export default function EditProfileScreen() {
       console.log('✅ Perfil actualizado correctamente');
 
       Alert.alert('¡Éxito!', 'Tu perfil ha sido actualizado correctamente', [
-        { 
-          text: 'OK', 
+        {
+          text: 'OK',
           onPress: async () => {
             if (refreshProfile) {
               await refreshProfile();
@@ -305,7 +321,7 @@ export default function EditProfileScreen() {
               >
                 <Ionicons name="calendar-outline" size={20} color="#64748B" />
                 <Text style={[
-                  styles.datePickerText, 
+                  styles.datePickerText,
                   (selectedYear && selectedMonth && selectedDay) ? styles.datePickerTextFilled : null
                 ]}>
                   {getDisplayBirthDate()}

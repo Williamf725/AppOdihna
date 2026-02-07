@@ -169,21 +169,98 @@ export default function ReservaDetalleScreen() {
     const handleCancel = async () => {
         if (!booking || !user) return;
 
-        // Validar 48 horas para huéspedes
-        if (isGuest) {
-            const checkInDate = new Date(booking.check_in_date);
-            const now = new Date();
-            const hoursUntilCheckIn = (checkInDate.getTime() - now.getTime()) / (1000 * 3600);
+        // Calcular horas hasta el check-in
+        const checkInDate = new Date(booking.check_in_date);
+        const now = new Date();
+        const hoursUntilCheckIn = (checkInDate.getTime() - now.getTime()) / (1000 * 3600);
+        const isSameDay = checkInDate.toDateString() === now.toDateString();
+        const isCloseToCheckIn = hoursUntilCheckIn < 48 && hoursUntilCheckIn > 0;
+        const isPastCheckIn = hoursUntilCheckIn <= 0;
 
-            if (hoursUntilCheckIn < 48) {
-                Alert.alert(
-                    'No se puede cancelar',
-                    'Las reservas solo se pueden cancelar con al menos 48 horas de anticipación.'
-                );
-                return;
+        // Función para ejecutar la cancelación
+        const executeCancellation = async () => {
+            setActionLoading(true);
+            try {
+                await cancelBooking(booking.id, user.id);
+                Alert.alert('Éxito', 'Reserva cancelada correctamente');
+                loadBooking();
+            } catch (error) {
+                Alert.alert('Error', 'No se pudo cancelar la reserva');
+            } finally {
+                setActionLoading(false);
             }
+        };
+
+        // Si es el mismo día del check-in o ya pasó
+        if (isSameDay || isPastCheckIn) {
+            const warningTitle = isPastCheckIn
+                ? '⚠️ Reserva ya iniciada'
+                : '⚠️ Cancelación el día del check-in';
+            const warningMessage = isPastCheckIn
+                ? 'Esta reserva ya comenzó o está en curso. Cancelarla puede afectar al huésped que ya llegó o está por llegar. ¿Estás completamente seguro?'
+                : `El check-in es HOY. Cancelar con tan poco tiempo de anticipación puede causar inconvenientes ${isHost ? 'al huésped' : 'al anfitrión'}. ¿Deseas continuar?`;
+
+            Alert.alert(
+                warningTitle,
+                warningMessage,
+                [
+                    { text: 'No cancelar', style: 'cancel' },
+                    {
+                        text: 'Entiendo, continuar',
+                        style: 'destructive',
+                        onPress: () => {
+                            // Segundo mensaje de confirmación
+                            Alert.alert(
+                                '🚨 Confirmación final',
+                                'Esta acción no se puede deshacer. La otra parte será notificada inmediatamente.',
+                                [
+                                    { text: 'Volver', style: 'cancel' },
+                                    {
+                                        text: 'Confirmar cancelación',
+                                        style: 'destructive',
+                                        onPress: executeCancellation,
+                                    },
+                                ]
+                            );
+                        },
+                    },
+                ]
+            );
+            return;
         }
 
+        // Si es menos de 48 horas pero más de un día
+        if (isCloseToCheckIn) {
+            const hoursText = Math.round(hoursUntilCheckIn);
+            Alert.alert(
+                '⚠️ Cancelación próxima al check-in',
+                `Faltan aproximadamente ${hoursText} horas para el check-in. Cancelar con poco tiempo de anticipación puede causar inconvenientes ${isHost ? 'al huésped' : 'al anfitrión'}.\n\n¿Deseas continuar con la cancelación?`,
+                [
+                    { text: 'No cancelar', style: 'cancel' },
+                    {
+                        text: 'Sí, continuar',
+                        style: 'destructive',
+                        onPress: () => {
+                            Alert.alert(
+                                'Confirmar cancelación',
+                                '¿Estás seguro? Esta acción no se puede deshacer.',
+                                [
+                                    { text: 'Volver', style: 'cancel' },
+                                    {
+                                        text: 'Cancelar reserva',
+                                        style: 'destructive',
+                                        onPress: executeCancellation,
+                                    },
+                                ]
+                            );
+                        },
+                    },
+                ]
+            );
+            return;
+        }
+
+        // Cancelación normal (más de 48 horas)
         Alert.alert(
             'Cancelar Reserva',
             '¿Estás seguro que deseas cancelar esta reserva? Esta acción no se puede deshacer.',
@@ -192,18 +269,7 @@ export default function ReservaDetalleScreen() {
                 {
                     text: 'Sí, cancelar',
                     style: 'destructive',
-                    onPress: async () => {
-                        setActionLoading(true);
-                        try {
-                            await cancelBooking(booking.id, user.id);
-                            Alert.alert('Éxito', 'Reserva cancelada correctamente');
-                            loadBooking();
-                        } catch (error) {
-                            Alert.alert('Error', 'No se pudo cancelar la reserva');
-                        } finally {
-                            setActionLoading(false);
-                        }
-                    },
+                    onPress: executeCancellation,
                 },
             ]
         );

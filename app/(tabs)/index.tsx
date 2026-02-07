@@ -1,64 +1,686 @@
-// app/(tabs)/index.tsx
+import { ModeSwitch } from '@/components/ModeSwitch';
+import { RealEstateView } from '@/components/RealEstateView';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { categories, Property } from '@/constants/mockData';
+import { useAppMode } from '@/hooks/useAppMode';
 import { useAuth } from '@/hooks/useAuth';
+import { useFavorites } from '@/hooks/useFavorites';
+import { FEATURED_BADGES, FeaturedProperty, getFeaturedProperties } from '@/lib/featuredService';
 import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Dimensions,
+  LayoutAnimation,
   Modal,
   Platform,
+  Pressable,
   RefreshControl,
   ScrollView,
+  StatusBar,
   StyleSheet,
   TextInput,
   TouchableOpacity,
+  UIManager,
+  useColorScheme,
   View
 } from 'react-native';
 
-const { width } = Dimensions.get('window');
+// Habilitar animaciones de layout para Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+const { width, height } = Dimensions.get('window');
+const CARD_HEIGHT = height * 0.55;
+const CAROUSEL_CARD_HEIGHT = height * 0.30;
+const CAROUSEL_CARD_WIDTH = width * 0.65;
+
+// ================================
+// NOCTURNE LUXURY PALETTE
+// ================================
+const Colors = {
+  light: {
+    background: '#F5F5F0',
+    cardBackground: '#FFFFFF',
+    text: '#121212',
+    textLight: '#FFFFFF',
+    accent: '#D4AF37', // Dorado
+    accentDark: '#AA8C2C',
+    border: '#E0E0E0',
+    divider: '#EBEBEB',
+    shadow: '#000',
+    inputBackground: '#FFFFFF',
+    primaryButton: '#121212',
+    glass: 'rgba(255,255,255,0.2)',
+  },
+  dark: {
+    background: '#050505',
+    cardBackground: '#121212',
+    text: '#F0F0F0',
+    textLight: '#FFFFFF',
+    accent: '#D4AF37', // Dorado
+    accentDark: '#F2D06B',
+    border: '#333333',
+    divider: '#222222',
+    shadow: '#000',
+    inputBackground: '#1E1E1E',
+    primaryButton: '#D4AF37',
+    glass: 'rgba(0,0,0,0.6)',
+  },
+};
+
+// ================================
+// ANIMATED PROPERTY CARD COMPONENT
+// ================================
+interface AnimatedPropertyCardProps {
+  property: Property;
+  index: number;
+  onPress: () => void;
+  isDark: boolean;
+  isFavorite: boolean;
+  onToggleFavorite: () => void;
+}
+
+function AnimatedPropertyCard({ property, index, onPress, isDark, isFavorite, onToggleFavorite }: AnimatedPropertyCardProps) {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const heartScale = useRef(new Animated.Value(1)).current;
+
+  const colors = isDark ? Colors.dark : Colors.light;
+
+  useEffect(() => {
+    const delay = index * 100;
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        delay,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 800,
+        delay,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.98,
+      useNativeDriver: true,
+      friction: 8,
+      tension: 40,
+    });
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      friction: 8,
+      tension: 40,
+    }).start();
+  };
+
+  const handleFavoritePress = () => {
+    Animated.sequence([
+      Animated.spring(heartScale, {
+        toValue: 1.3,
+        useNativeDriver: true,
+        friction: 3,
+      }),
+      Animated.spring(heartScale, {
+        toValue: 1,
+        useNativeDriver: true,
+        friction: 5,
+      }),
+    ]).start();
+    onToggleFavorite();
+  };
+
+  return (
+    <Animated.View
+      style={[
+        styles.cardContainer,
+        {
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
+        },
+      ]}
+    >
+      <Pressable
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        style={[styles.card, { shadowColor: colors.accent }]}
+      >
+        <Image
+          source={{ uri: property.images[0] }}
+          style={styles.cardImage}
+          contentFit="cover"
+          transition={500}
+        />
+
+        <LinearGradient
+          colors={['rgba(0,0,0,0.3)', 'transparent', 'transparent', 'rgba(0,0,0,0.8)', 'rgba(0,0,0,0.95)']}
+          locations={[0, 0.2, 0.5, 0.8, 1]}
+          style={styles.cardGradient}
+        />
+
+        <View style={styles.cardTopRow}>
+          <View style={styles.locationTag}>
+            <ThemedText style={styles.locationTagLabel}>LOCATION</ThemedText>
+            <View style={styles.locationRowValue}>
+              {/* CORRECCIÓN: Se eliminó {property.city} para evitar duplicados */}
+              <ThemedText style={styles.locationValue} numberOfLines={1}>
+                {property.location}
+              </ThemedText>
+              <Ionicons name="chevron-down" size={12} color={colors.accent} />
+            </View>
+          </View>
+
+          <TouchableOpacity style={styles.glassIconBtn} onPress={handleFavoritePress} activeOpacity={0.8}>
+            <Animated.View style={{ transform: [{ scale: heartScale }] }}>
+              <Ionicons
+                name={isFavorite ? 'heart' : 'heart-outline'}
+                size={20}
+                color={isFavorite ? '#EF4444' : '#FFF'}
+              />
+            </Animated.View>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.cardBottomContent}>
+          <View style={styles.ratingPill}>
+            <Ionicons name="star" size={12} color={colors.accent} />
+            <ThemedText style={styles.ratingText}>{property.rating}</ThemedText>
+          </View>
+
+          <ThemedText style={styles.cardTitle} numberOfLines={2}>
+            {property.title}
+          </ThemedText>
+
+          <View style={styles.cardFooterRow}>
+            <View style={styles.amenitiesRow}>
+              <Ionicons name="bed-outline" size={16} color={colors.accent} style={{ marginRight: 4 }} />
+              <ThemedText style={styles.amenityText}>{property.bedrooms} Hab</ThemedText>
+              <ThemedText style={styles.amenityDivider}>•</ThemedText>
+              <Ionicons name="people-outline" size={16} color={colors.accent} style={{ marginRight: 4 }} />
+              <ThemedText style={styles.amenityText}>{property.maxGuests} Huéspedes</ThemedText>
+            </View>
+
+            <View style={styles.priceContainer}>
+              <ThemedText style={styles.priceSymbol}>$</ThemedText>
+              <ThemedText style={styles.priceValue}>{property.price.toLocaleString()}</ThemedText>
+            </View>
+          </View>
+        </View>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+// ================================
+// CAROUSEL PROPERTY CARD COMPONENT
+// ================================
+interface CarouselPropertyCardProps {
+  property: Property;
+  onPress: () => void;
+  isDark: boolean;
+  isFavorite: boolean;
+  onToggleFavorite: () => void;
+}
+
+function CarouselPropertyCard({ property, onPress, isDark, isFavorite, onToggleFavorite }: CarouselPropertyCardProps) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const heartScale = useRef(new Animated.Value(1)).current;
+  const colors = isDark ? Colors.dark : Colors.light;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.96,
+      useNativeDriver: true,
+      friction: 8,
+      tension: 40,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      friction: 8,
+      tension: 40,
+    }).start();
+  };
+
+  const handleFavoritePress = () => {
+    Animated.sequence([
+      Animated.spring(heartScale, {
+        toValue: 1.3,
+        useNativeDriver: true,
+        friction: 3,
+      }),
+      Animated.spring(heartScale, {
+        toValue: 1,
+        useNativeDriver: true,
+        friction: 5,
+      }),
+    ]).start();
+    onToggleFavorite();
+  };
+
+  return (
+    <Animated.View style={[styles.carouselCardContainer, { transform: [{ scale: scaleAnim }] }]}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        style={[styles.carouselCard, { shadowColor: colors.accent }]}
+      >
+        <Image
+          source={{ uri: property.images[0] }}
+          style={styles.carouselCardImage}
+          contentFit="cover"
+          transition={400}
+        />
+
+        <LinearGradient
+          colors={['rgba(0,0,0,0.2)', 'transparent', 'rgba(0,0,0,0.85)']}
+          locations={[0, 0.4, 1]}
+          style={styles.carouselCardGradient}
+        />
+
+        {/* Botón de favorito */}
+        <TouchableOpacity
+          style={styles.carouselFavoriteBtn}
+          onPress={handleFavoritePress}
+          activeOpacity={0.8}
+        >
+          <Animated.View style={{ transform: [{ scale: heartScale }] }}>
+            <Ionicons
+              name={isFavorite ? 'heart' : 'heart-outline'}
+              size={18}
+              color={isFavorite ? '#EF4444' : '#FFF'}
+            />
+          </Animated.View>
+        </TouchableOpacity>
+
+        {/* Contenido inferior */}
+        <View style={styles.carouselCardContent}>
+          <View style={styles.carouselRatingPill}>
+            <Ionicons name="star" size={10} color={colors.accent} />
+            <ThemedText style={styles.carouselRatingText}>{property.rating}</ThemedText>
+          </View>
+
+          <ThemedText style={styles.carouselCardTitle} numberOfLines={2}>
+            {property.title}
+          </ThemedText>
+
+          <View style={styles.carouselCardFooter}>
+            <View style={styles.carouselAmenities}>
+              <Ionicons name="bed-outline" size={12} color={colors.accent} />
+              <ThemedText style={styles.carouselAmenityText}>{property.bedrooms}</ThemedText>
+              <ThemedText style={styles.carouselDivider}>•</ThemedText>
+              <Ionicons name="people-outline" size={12} color={colors.accent} />
+              <ThemedText style={styles.carouselAmenityText}>{property.maxGuests}</ThemedText>
+            </View>
+
+            <View style={styles.carouselPriceContainer}>
+              <ThemedText style={styles.carouselPriceSymbol}>$</ThemedText>
+              <ThemedText style={styles.carouselPriceValue}>{property.price.toLocaleString()}</ThemedText>
+            </View>
+          </View>
+        </View>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+// ================================
+// FEATURED SECTION COMPONENT
+// ================================
+interface FeaturedSectionProps {
+  properties: FeaturedProperty[];
+  isDark: boolean;
+  isFavorite: (id: string) => boolean;
+  toggleFavorite: (id: string) => void;
+}
+
+function FeaturedSection({ properties, isDark, isFavorite, toggleFavorite }: FeaturedSectionProps) {
+  const colors = isDark ? Colors.dark : Colors.light;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
+
+  useEffect(() => {
+    if (properties.length > 0) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          useNativeDriver: true,
+          friction: 8,
+        }),
+      ]).start();
+    }
+  }, [properties]);
+
+  if (properties.length === 0) return null;
+
+  return (
+    <Animated.View
+      style={[
+        styles.featuredSection,
+        {
+          opacity: fadeAnim,
+          transform: [{ scale: scaleAnim }],
+        }
+      ]}
+    >
+      {/* Header con título premium */}
+      <View style={styles.featuredHeader}>
+        <View style={styles.featuredTitleRow}>
+          <LinearGradient
+            colors={['#FFD700', '#FFA500']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.featuredIconBg}
+          >
+            <Ionicons name="diamond" size={16} color="#FFF" />
+          </LinearGradient>
+          <View>
+            <ThemedText style={[styles.featuredTitle, { color: colors.text }]}>
+              Destacados
+            </ThemedText>
+            <ThemedText style={[styles.featuredSubtitle, { color: colors.accent }]}>
+              Los más populares de la comunidad
+            </ThemedText>
+          </View>
+        </View>
+      </View>
+
+      {/* Carrusel horizontal de destacados */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.featuredScrollContent}
+        snapToInterval={width * 0.75 + 15}
+        decelerationRate="fast"
+      >
+        {properties.map((property, index) => (
+          <FeaturedPropertyCard
+            key={`featured-${property.id}-${index}-${property.featured_reason}`}
+            property={property}
+            index={index}
+            onPress={() => router.push(`/${property.id}`)}
+            isDark={isDark}
+            isFavorite={isFavorite(String(property.id))}
+            onToggleFavorite={() => toggleFavorite(String(property.id))}
+          />
+        ))}
+      </ScrollView>
+    </Animated.View>
+  );
+}
+
+// ================================
+// FEATURED PROPERTY CARD COMPONENT
+// ================================
+interface FeaturedPropertyCardProps {
+  property: FeaturedProperty;
+  index: number;
+  onPress: () => void;
+  isDark: boolean;
+  isFavorite: boolean;
+  onToggleFavorite: () => void;
+}
+
+function FeaturedPropertyCard({ property, index, onPress, isDark, isFavorite, onToggleFavorite }: FeaturedPropertyCardProps) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const heartScale = useRef(new Animated.Value(1)).current;
+  const colors = isDark ? Colors.dark : Colors.light;
+  const badge = FEATURED_BADGES[property.featured_reason] || FEATURED_BADGES['Mejor valorado'];
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.96,
+      useNativeDriver: true,
+      friction: 8,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      friction: 8,
+    }).start();
+  };
+
+  const handleFavoritePress = () => {
+    Animated.sequence([
+      Animated.spring(heartScale, {
+        toValue: 1.4,
+        useNativeDriver: true,
+        friction: 3,
+      }),
+      Animated.spring(heartScale, {
+        toValue: 1,
+        useNativeDriver: true,
+        friction: 5,
+      }),
+    ]).start();
+    onToggleFavorite();
+  };
+
+  return (
+    <Animated.View style={[styles.featuredCardContainer, { transform: [{ scale: scaleAnim }] }]}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        style={styles.featuredCard}
+      >
+        <Image
+          source={{ uri: property.images[0] }}
+          style={styles.featuredCardImage}
+          contentFit="cover"
+          transition={400}
+        />
+
+        {/* Gradiente overlay */}
+        <LinearGradient
+          colors={['rgba(0,0,0,0.4)', 'transparent', 'rgba(0,0,0,0.9)']}
+          locations={[0, 0.3, 1]}
+          style={styles.featuredCardGradient}
+        />
+
+        {/* Badge de destacado */}
+        <View style={styles.featuredBadgeContainer}>
+          <LinearGradient
+            colors={badge.gradient as [string, string]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.featuredBadge}
+          >
+            <Ionicons name={badge.icon as any} size={12} color="#FFF" />
+            <ThemedText style={styles.featuredBadgeText}>
+              {property.featured_reason}
+            </ThemedText>
+          </LinearGradient>
+        </View>
+
+        {/* Botón de favorito */}
+        <TouchableOpacity
+          style={styles.featuredFavoriteBtn}
+          onPress={handleFavoritePress}
+          activeOpacity={0.8}
+        >
+          <Animated.View style={{ transform: [{ scale: heartScale }] }}>
+            <Ionicons
+              name={isFavorite ? 'heart' : 'heart-outline'}
+              size={20}
+              color={isFavorite ? '#EF4444' : '#FFF'}
+            />
+          </Animated.View>
+        </TouchableOpacity>
+
+        {/* Contenido inferior */}
+        <View style={styles.featuredCardContent}>
+          <View style={styles.featuredRatingRow}>
+            <View style={styles.featuredRatingPill}>
+              <Ionicons name="star" size={12} color={colors.accent} />
+              <ThemedText style={styles.featuredRatingText}>{property.rating}</ThemedText>
+            </View>
+            <ThemedText style={styles.featuredCityText}>{property.city}</ThemedText>
+          </View>
+
+          <ThemedText style={styles.featuredCardTitle} numberOfLines={2}>
+            {property.title}
+          </ThemedText>
+
+          <View style={styles.featuredCardFooter}>
+            <View style={styles.featuredAmenities}>
+              <Ionicons name="bed-outline" size={14} color="#CCC" />
+              <ThemedText style={styles.featuredAmenityText}>{property.bedrooms}</ThemedText>
+              <ThemedText style={styles.featuredDivider}>•</ThemedText>
+              <Ionicons name="people-outline" size={14} color="#CCC" />
+              <ThemedText style={styles.featuredAmenityText}>{property.max_guests}</ThemedText>
+            </View>
+
+            <View style={styles.featuredPriceContainer}>
+              <ThemedText style={styles.featuredPriceSymbol}>$</ThemedText>
+              <ThemedText style={styles.featuredPriceValue}>
+                {property.price.toLocaleString()}
+              </ThemedText>
+            </View>
+          </View>
+        </View>
+
+        {/* Borde dorado premium */}
+        <View style={[styles.featuredBorderOverlay, { borderColor: badge.color }]} />
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+// ================================
+// CITY CAROUSEL SECTION COMPONENT
+// ================================
+interface CityCarouselSectionProps {
+  city: string;
+  properties: Property[];
+  isDark: boolean;
+  isFavorite: (id: string) => boolean;
+  toggleFavorite: (id: string) => void;
+}
+
+function CityCarouselSection({ city, properties, isDark, isFavorite, toggleFavorite }: CityCarouselSectionProps) {
+  const colors = isDark ? Colors.dark : Colors.light;
+  const scrollX = useRef(new Animated.Value(0)).current;
+
+  return (
+    <View style={styles.cityCarouselSection}>
+      {/* Header de la ciudad */}
+      <View style={styles.cityHeader}>
+        <View>
+          <ThemedText style={[styles.cityName, { color: colors.text }]}>{city}</ThemedText>
+          <ThemedText style={[styles.citySubtitle, { color: colors.accent }]}>
+            {properties.length} {properties.length === 1 ? 'alojamiento' : 'alojamientos'}
+          </ThemedText>
+        </View>
+        <TouchableOpacity
+          style={[styles.viewAllButton, { borderColor: colors.border }]}
+          activeOpacity={0.7}
+        >
+          <ThemedText style={[styles.viewAllText, { color: colors.accent }]}>Ver todos</ThemedText>
+          <Ionicons name="arrow-forward" size={14} color={colors.accent} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Carrusel horizontal */}
+      <Animated.ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.carouselScrollContent}
+        snapToInterval={CAROUSEL_CARD_WIDTH + 15}
+        decelerationRate="fast"
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+          { useNativeDriver: true }
+        )}
+        scrollEventThrottle={16}
+      >
+        {properties.map((property) => (
+          <CarouselPropertyCard
+            key={property.id}
+            property={property}
+            onPress={() => router.push(`/${property.id}`)}
+            isDark={isDark}
+            isFavorite={isFavorite(String(property.id))}
+            onToggleFavorite={() => toggleFavorite(String(property.id))}
+          />
+        ))}
+      </Animated.ScrollView>
+    </View>
+  );
+}
 
 export default function HomeScreen() {
-  // Auth
-  const { profile } = useAuth();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const colors = isDark ? Colors.dark : Colors.light;
 
-  // Estados de búsqueda
+  const { profile } = useAuth();
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const { mode, modeColors, isEstadia } = useAppMode();
+
   const [checkIn, setCheckIn] = useState<Date | null>(null);
   const [checkOut, setCheckOut] = useState<Date | null>(null);
   const [adults, setAdults] = useState(2);
   const [children, setChildren] = useState(0);
   const [rooms, setRooms] = useState(1);
 
-  // Estados de modales
   const [guestsModalVisible, setGuestsModalVisible] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const [showCheckInPicker, setShowCheckInPicker] = useState(false);
   const [showCheckOutPicker, setShowCheckOutPicker] = useState(false);
 
-  // Estados para búsqueda y filtrado
+  const [isFiltersVisible, setIsFiltersVisible] = useState(false);
+  const [isComprarFiltersVisible, setIsComprarFiltersVisible] = useState(true); // Open by default for dramatic entrance
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('todos');
 
-  // Estados para Supabase
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchActive, setSearchActive] = useState(false);
+  const [featuredProperties, setFeaturedProperties] = useState<FeaturedProperty[]>([]);
 
-  // Cargar propiedades desde Supabase
   const loadProperties = async () => {
     try {
       const { data, error } = await supabase
         .from('properties')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select('id, title, location, city, department, price, rating, review_count, images, tags, max_guests, bedrooms, blocked_dates')
+        .order('created_at', { ascending: false })
+        .limit(50);
 
       if (error) throw error;
 
@@ -95,47 +717,44 @@ export default function HomeScreen() {
     }
   };
 
-  // Recargar al enfocar la pantalla
+  const loadFeaturedProperties = async () => {
+    try {
+      const featured = await getFeaturedProperties();
+      setFeaturedProperties(featured);
+    } catch (error) {
+      console.error('Error loading featured properties:', error);
+    }
+  };
+
   useFocusEffect(
     useCallback(() => {
-      console.log('🔄 Pantalla enfocada, recargando propiedades...');
       loadProperties();
+      loadFeaturedProperties();
     }, [])
   );
 
-  // Función para refrescar
   const onRefresh = () => {
     setRefreshing(true);
     loadProperties();
+    loadFeaturedProperties();
   };
 
-  // Función para verificar si las fechas están disponibles
   const isPropertyAvailable = (property: Property, checkInDate: Date, checkOutDate: Date): boolean => {
     if (!property.blockedDates || !Array.isArray(property.blockedDates) || property.blockedDates.length === 0) {
       return true;
     }
-
     const searchDates: string[] = [];
     const current = new Date(checkInDate);
-
     while (current <= checkOutDate) {
       const dateString = current.toISOString().split('T')[0];
       searchDates.push(dateString);
       current.setDate(current.getDate() + 1);
     }
-
-    const hasBlockedDate = searchDates.some(date =>
-      property.blockedDates.includes(date)
-    );
-
-    return !hasBlockedDate;
+    return !searchDates.some(date => property.blockedDates.includes(date));
   };
 
-  // Filtrado de propiedades
   const filteredProperties = useMemo(() => {
     let filtered = properties;
-
-    // Filtro por categoría
     if (selectedCategory !== 'todos') {
       filtered = filtered.filter(property =>
         property.tags.some(tag =>
@@ -143,8 +762,6 @@ export default function HomeScreen() {
         )
       );
     }
-
-    // Filtro por texto de búsqueda
     if (searchQuery.trim() !== '') {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(property =>
@@ -153,15 +770,11 @@ export default function HomeScreen() {
         property.city.toLowerCase().includes(query)
       );
     }
-
-    // Filtro por disponibilidad de fechas
     if (searchActive && checkIn && checkOut) {
       filtered = filtered.filter(property =>
         isPropertyAvailable(property, checkIn, checkOut)
       );
     }
-
-    // Filtro por capacidad
     if (searchActive) {
       const totalGuests = adults + children;
       filtered = filtered.filter(property => {
@@ -170,11 +783,26 @@ export default function HomeScreen() {
         return propertyMaxGuests >= totalGuests && propertyBedrooms >= rooms;
       });
     }
-
     return filtered;
   }, [searchQuery, selectedCategory, properties, searchActive, checkIn, checkOut, adults, children, rooms]);
 
-  // Manejar selección de fecha check-in
+  // Agrupar propiedades por ciudad para los carruseles
+  const propertiesByCity = useMemo(() => {
+    const cityMap: { [key: string]: Property[] } = {};
+    properties.forEach(property => {
+      const city = property.city || 'Otros';
+      if (!cityMap[city]) {
+        cityMap[city] = [];
+      }
+      cityMap[city].push(property);
+    });
+    // Ordenar por cantidad de propiedades y limitar a las 3 ciudades con más propiedades
+    return Object.entries(cityMap)
+      .filter(([_, props]) => props.length >= 2) // Solo ciudades con 2+ propiedades
+      .sort((a, b) => b[1].length - a[1].length)
+      .slice(0, 3);
+  }, [properties]);
+
   const onCheckInChange = (event: any, selectedDate?: Date) => {
     setShowCheckInPicker(Platform.OS === 'ios');
     if (selectedDate) {
@@ -185,7 +813,6 @@ export default function HomeScreen() {
     }
   };
 
-  // Manejar selección de fecha check-out
   const onCheckOutChange = (event: any, selectedDate?: Date) => {
     setShowCheckOutPicker(Platform.OS === 'ios');
     if (selectedDate) {
@@ -193,17 +820,14 @@ export default function HomeScreen() {
     }
   };
 
-  // Formatear fecha para mostrar
   const formatDate = (date: Date | null): string => {
-    if (!date) return 'Seleccionar';
+    if (!date) return '';
     return date.toLocaleDateString('es-ES', {
-      day: '2-digit',
+      day: 'numeric',
       month: 'short',
-      year: 'numeric'
     });
   };
 
-  // Función para buscar
   const handleSearch = () => {
     if (!checkIn || !checkOut) {
       alert('Por favor selecciona las fechas de entrada y salida');
@@ -214,10 +838,9 @@ export default function HomeScreen() {
       return;
     }
     setSearchActive(true);
-    console.log('🔍 Buscando alojamientos disponibles...');
+    setIsFiltersVisible(false);
   };
 
-  // Función para limpiar búsqueda
   const handleClearSearch = () => {
     setCheckIn(null);
     setCheckOut(null);
@@ -227,231 +850,237 @@ export default function HomeScreen() {
     setSearchActive(false);
   };
 
-  const selectedCategoryName = categories.find(cat => cat.tag === selectedCategory)?.name || 'Todos';
+  const toggleFilters = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setIsFiltersVisible(!isFiltersVisible);
+  };
 
   if (loading) {
     return (
-      <ThemedView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2C5F7C" />
-        <ThemedText style={styles.loadingText}>Cargando alojamientos...</ThemedText>
+      <ThemedView style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.accent} />
       </ThemedView>
     );
   }
 
   return (
-    <ThemedView style={styles.container}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
-        {/* Header con fondo negro */}
-        <View style={styles.headerBlack}>
-          {/* Botón del menú hamburguesa */}
-          <TouchableOpacity
-            style={styles.menuButton}
-            onPress={() => setMenuVisible(true)}
-          >
-            <Ionicons name="menu" size={28} color="#FFFFFF" />
-          </TouchableOpacity>
-          <View style={styles.logoContainer}>
-            <ThemedText style={styles.logoOdihna}>ODIHNA</ThemedText>
-          </View>
-          <ThemedText style={styles.subtitle}>Encuentra tu escape perfecto</ThemedText>
-        </View>
+    <ThemedView style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} translucent backgroundColor="transparent" />
 
-        {/* Sección de búsqueda mejorada */}
-        <View style={styles.searchSection}>
-          {/* Barra de búsqueda por texto */}
-          <View style={styles.searchBar}>
-            <Ionicons name="search-outline" size={20} color="#999" />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Buscar por ciudad o nombre..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholderTextColor="#999"
-            />
-            {searchQuery !== '' && (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Ionicons name="close-circle" size={20} color="#999" />
-              </TouchableOpacity>
+      {/* HEADER ELEGANTE */}
+      <View style={[styles.header, { backgroundColor: colors.background }]}>
+        <View style={styles.headerContent}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            {isEstadia && (
+              <Image
+                source={{ uri: 'https://res.cloudinary.com/dvpnkr2i9/image/upload/v1770446460/LogoOdihna_thsha2.jpg' }}
+                style={{ width: 45, height: 45, borderRadius: 22.5 }}
+                contentFit="cover"
+              />
             )}
-          </View>
-
-          {/* Selectores de fechas */}
-          <View style={styles.dateRow}>
-            <TouchableOpacity
-              style={styles.dateInput}
-              onPress={() => setShowCheckInPicker(true)}
-            >
-              <View style={styles.dateInputContent}>
-                <Ionicons name="calendar-outline" size={20} color="#2C5F7C" />
-                <View style={styles.dateTextContainer}>
-                  <ThemedText style={styles.dateLabel}>Check-in</ThemedText>
-                  <ThemedText style={styles.dateValue}>{formatDate(checkIn)}</ThemedText>
-                </View>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.dateInput}
-              onPress={() => setShowCheckOutPicker(true)}
-            >
-              <View style={styles.dateInputContent}>
-                <Ionicons name="calendar-outline" size={20} color="#2C5F7C" />
-                <View style={styles.dateTextContainer}>
-                  <ThemedText style={styles.dateLabel}>Check-out</ThemedText>
-                  <ThemedText style={styles.dateValue}>{formatDate(checkOut)}</ThemedText>
-                </View>
-              </View>
-            </TouchableOpacity>
-          </View>
-
-          {/* Selector de huéspedes y habitaciones */}
-          <TouchableOpacity
-            style={styles.guestsButton}
-            onPress={() => setGuestsModalVisible(true)}
-          >
-            <Ionicons name="people-outline" size={20} color="#2C5F7C" />
-            <View style={styles.guestsTextContainer}>
-              <ThemedText style={styles.guestsLabel}>Huéspedes y habitaciones</ThemedText>
-              <ThemedText style={styles.guestsValue}>
-                {adults + children} huéspedes · {rooms} habitación{rooms > 1 ? 'es' : ''}
+            <View>
+              <ThemedText style={[styles.logoText, { color: colors.text }]}>ODIHNA</ThemedText>
+              <ThemedText style={[styles.logoSubtext, { color: isEstadia ? colors.accent : modeColors.accent }]}>
+                {isEstadia ? 'Experiencias Unicas' : 'Bienes Raíces'}
               </ThemedText>
             </View>
-            <Ionicons name="chevron-down" size={20} color="#666" />
-          </TouchableOpacity>
-
-          {/* Botón de búsqueda */}
-          <View style={styles.searchButtonRow}>
-            <TouchableOpacity
-              style={styles.searchButton}
-              onPress={handleSearch}
-            >
-              <Ionicons name="search" size={20} color="#fff" />
-              <ThemedText style={styles.searchButtonText}>Buscar</ThemedText>
-            </TouchableOpacity>
-            {searchActive && (
-              <TouchableOpacity
-                style={styles.clearButton}
-                onPress={handleClearSearch}
-              >
-                <Ionicons name="close" size={20} color="#2C5F7C" />
-              </TouchableOpacity>
-            )}
           </View>
 
-          {/* Indicador de búsqueda activa */}
-          {searchActive && (
-            <View style={styles.activeSearchIndicator}>
-              <Ionicons name="funnel" size={16} color="#2C5F7C" />
-              <ThemedText style={styles.activeSearchText}>
-                Mostrando {filteredProperties.length} alojamientos disponibles
-              </ThemedText>
-            </View>
-          )}
+          <View style={styles.headerRightButtons}>
+            {/* Mode Switch */}
+            <ModeSwitch isDark={isDark} />
+
+            {/* Search button - Estadía */}
+            {isEstadia && (
+              <TouchableOpacity
+                style={[styles.iconButton, { backgroundColor: isFiltersVisible ? colors.accent : colors.inputBackground, marginLeft: 10 }]}
+                onPress={toggleFilters}
+              >
+                <Ionicons name="search" size={22} color={isFiltersVisible ? '#FFF' : colors.text} />
+              </TouchableOpacity>
+            )}
+
+            {/* Search button - Comprar */}
+            {!isEstadia && (
+              <TouchableOpacity
+                style={[styles.iconButton, { backgroundColor: isComprarFiltersVisible ? modeColors.accent : colors.inputBackground, marginLeft: 10 }]}
+                onPress={() => setIsComprarFiltersVisible(!isComprarFiltersVisible)}
+              >
+                <Ionicons name="search" size={22} color={isComprarFiltersVisible ? '#FFF' : colors.text} />
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              style={[styles.iconButton, { marginLeft: 10, backgroundColor: colors.inputBackground }]}
+              onPress={() => setMenuVisible(true)}
+            >
+              <Ionicons name="menu" size={22} color={colors.text} />
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* Categorías */}
-        <View style={styles.categoriesSection}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoriesScroll}
-          >
-            {categories.map((category) => (
+        {/* FILTROS DESPLEGABLES - Solo en modo Estadía */}
+        {isEstadia && isFiltersVisible && (
+          <View style={styles.collapsibleContainer}>
+            <View style={[styles.searchContainer, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
+              <Ionicons name="search-outline" size={18} color={colors.text} style={{ opacity: 0.5 }} />
+              <TextInput
+                style={[styles.searchInput, { color: colors.text }]}
+                placeholder="Buscar destino..."
+                placeholderTextColor={isDark ? '#666' : '#999'}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={{ alignItems: 'center' }}>
+              {/* BOTON FECHA LLEGADA */}
               <TouchableOpacity
-                key={category.id}
-                style={[
-                  styles.categoryCard,
-                  selectedCategory === category.tag && styles.categoryCardActive
-                ]}
-                onPress={() => setSelectedCategory(category.tag)}
+                style={[styles.filterChip, { borderColor: checkIn ? colors.accent : colors.border, backgroundColor: checkIn ? 'rgba(212, 175, 55, 0.1)' : 'transparent' }]}
+                onPress={() => setShowCheckInPicker(true)}
               >
-                <Ionicons
-                  name={category.icon as any}
-                  size={24}
-                  color={selectedCategory === category.tag ? '#fff' : '#2C5F7C'}
-                />
-                <ThemedText
-                  style={[
-                    styles.categoryText,
-                    selectedCategory === category.tag && styles.categoryTextActive
-                  ]}
-                >
-                  {category.name}
+                <Ionicons name="calendar-outline" size={14} color={checkIn ? colors.accent : colors.text} />
+                <ThemedText style={[styles.filterText, { color: checkIn ? colors.accent : colors.text }]}>
+                  {checkIn ? formatDate(checkIn) : 'Llegada'}
                 </ThemedText>
               </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
 
-        {/* Lista de propiedades */}
-        <View style={styles.propertiesSection}>
-          <ThemedText style={styles.sectionTitle}>
-            {selectedCategoryName}
-          </ThemedText>
+              {/* BOTON FECHA SALIDA */}
+              <TouchableOpacity
+                style={[styles.filterChip, { borderColor: checkOut ? colors.accent : colors.border, backgroundColor: checkOut ? 'rgba(212, 175, 55, 0.1)' : 'transparent' }]}
+                onPress={() => setShowCheckOutPicker(true)}
+              >
+                <Ionicons name="calendar-outline" size={14} color={checkOut ? colors.accent : colors.text} />
+                <ThemedText style={[styles.filterText, { color: checkOut ? colors.accent : colors.text }]}>
+                  {checkOut ? formatDate(checkOut) : 'Salida'}
+                </ThemedText>
+              </TouchableOpacity>
+
+              {/* HUESPEDES */}
+              <TouchableOpacity
+                style={[styles.filterChip, { borderColor: colors.border }]}
+                onPress={() => setGuestsModalVisible(true)}
+              >
+                <Ionicons name="people-outline" size={14} color={colors.text} />
+                <ThemedText style={[styles.filterText, { color: colors.text }]}>
+                  {adults + children}
+                </ThemedText>
+              </TouchableOpacity>
+
+              {(!searchActive && checkIn && checkOut) && (
+                <TouchableOpacity style={[styles.filterChip, { backgroundColor: colors.accent, borderColor: colors.accent }]} onPress={handleSearch}>
+                  <ThemedText style={[styles.filterText, { color: '#FFF' }]}>Buscar</ThemedText>
+                </TouchableOpacity>
+              )}
+
+              {searchActive && (
+                <TouchableOpacity style={[styles.filterChip, { backgroundColor: colors.text }]} onPress={handleClearSearch}>
+                  <ThemedText style={[styles.filterText, { color: colors.background }]}>Limpiar</ThemedText>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoriesScroll}>
+              {categories.map((category) => (
+                <TouchableOpacity
+                  key={category.id}
+                  style={[
+                    styles.categoryItem,
+                    selectedCategory === category.tag && { backgroundColor: colors.accent }
+                  ]}
+                  onPress={() => setSelectedCategory(category.tag)}
+                >
+                  <ThemedText style={[
+                    styles.categoryText,
+                    { color: selectedCategory === category.tag ? '#FFF' : colors.text, fontWeight: selectedCategory === category.tag ? '700' : '400' }
+                  ]}>
+                    {category.name}
+                  </ThemedText>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+      </View>
+
+      {/* CONTENIDO PRINCIPAL - Condicional según modo */}
+      {isEstadia ? (
+        /* LISTA DE ALOJAMIENTOS - MODO ESTADÍA */
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />
+          }
+        >
+          {/* SECCIÓN DE DESTACADOS - Solo cuando no hay filtros activos */}
+          {!searchActive && !searchQuery.trim() && selectedCategory === 'todos' && featuredProperties.length > 0 && (
+            <FeaturedSection
+              properties={featuredProperties}
+              isDark={isDark}
+              isFavorite={isFavorite}
+              toggleFavorite={toggleFavorite}
+            />
+          )}
+
+          {/* CARRUSELES POR CIUDAD - Solo cuando no hay filtros activos */}
+          {!searchActive && !searchQuery.trim() && selectedCategory === 'todos' && propertiesByCity.length > 0 && (
+            <View style={styles.cityCarouselsWrapper}>
+              <ThemedText style={[styles.sectionTitle, { color: colors.text }]}>
+                Explora por Ciudad
+              </ThemedText>
+              {propertiesByCity.map(([city, cityProperties]) => (
+                <CityCarouselSection
+                  key={city}
+                  city={city}
+                  properties={cityProperties}
+                  isDark={isDark}
+                  isFavorite={isFavorite}
+                  toggleFavorite={toggleFavorite}
+                />
+              ))}
+
+              {/* Separador */}
+              <View style={styles.sectionDivider}>
+                <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+                <ThemedText style={[styles.dividerText, { color: colors.text }]}>
+                  Todos los alojamientos
+                </ThemedText>
+                <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+              </View>
+            </View>
+          )}
 
           {filteredProperties.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="search-outline" size={64} color="#ccc" />
-              <ThemedText style={styles.emptyStateText}>
-                No se encontraron alojamientos
-              </ThemedText>
-              {searchActive && (
-                <ThemedText style={styles.emptyStateSubtext}>
-                  Intenta cambiar las fechas o ajustar los filtros
-                </ThemedText>
-              )}
+              <Ionicons name="telescope-outline" size={60} color={colors.accent} style={{ opacity: 0.5 }} />
+              <ThemedText style={[styles.emptyText, { color: colors.text }]}>No encontramos alojamientos</ThemedText>
             </View>
           ) : (
-            filteredProperties.map((property) => (
-              <TouchableOpacity
+            filteredProperties.map((property, index) => (
+              <AnimatedPropertyCard
                 key={property.id}
-                style={styles.propertyCard}
+                property={property}
+                index={index}
                 onPress={() => router.push(`/${property.id}`)}
-                activeOpacity={0.7}
-              >
-                <Image
-                  source={{ uri: property.images[0] }}
-                  style={styles.propertyImage}
-                  contentFit="cover"
-                />
-                <View style={styles.propertyInfo}>
-                  <ThemedText style={styles.propertyTitle} numberOfLines={2}>
-                    {property.title}
-                  </ThemedText>
-                  <View style={styles.propertyLocation}>
-                    <Ionicons name="location" size={14} color="#666" />
-                    <ThemedText style={styles.locationText}>{property.location}</ThemedText>
-                  </View>
-                  <View style={styles.propertyFooter}>
-                    <View style={styles.priceContainer}>
-                      <ThemedText style={styles.price}>
-                        ${property.price.toLocaleString()}
-                      </ThemedText>
-                      <ThemedText style={styles.priceLabel}> / noche</ThemedText>
-                    </View>
-                    <View style={styles.ratingContainer}>
-                      <Ionicons name="star" size={14} color="#FFB800" />
-                      <ThemedText style={styles.rating}>{property.rating}</ThemedText>
-                      <ThemedText style={styles.reviewCount}>
-                        ({property.reviewCount})
-                      </ThemedText>
-                    </View>
-                  </View>
-                </View>
-              </TouchableOpacity>
+                isDark={isDark}
+                isFavorite={isFavorite(String(property.id))}
+                onToggleFavorite={() => toggleFavorite(String(property.id))}
+              />
             ))
           )}
-        </View>
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      ) : (
+        /* MODO COMPRAR - VISTA INMOBILIARIA */
+        <RealEstateView
+          isDark={isDark}
+          isFiltersVisible={isComprarFiltersVisible}
+          onToggleFilters={() => setIsComprarFiltersVisible(!isComprarFiltersVisible)}
+        />
+      )}
 
-        <View style={styles.bottomSpacing} />
-      </ScrollView>
-
-      {/* DateTimePicker para Check-in */}
+      {/* PICKERS */}
       {showCheckInPicker && (
         <DateTimePicker
           value={checkIn || new Date()}
@@ -462,7 +1091,6 @@ export default function HomeScreen() {
         />
       )}
 
-      {/* DateTimePicker para Check-out */}
       {showCheckOutPicker && (
         <DateTimePicker
           value={checkOut || (checkIn ? new Date(checkIn.getTime() + 86400000) : new Date())}
@@ -473,209 +1101,102 @@ export default function HomeScreen() {
         />
       )}
 
-      {/* Modal de huéspedes y habitaciones */}
-      <Modal
-        visible={guestsModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setGuestsModalVisible(false)}
-      >
+      {/* MODAL HUESPEDES */}
+      <Modal visible={guestsModalVisible} transparent animationType="fade" onRequestClose={() => setGuestsModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: colors.cardBackground }]}>
             <View style={styles.modalHeader}>
-              <ThemedText style={styles.modalTitle}>Huéspedes y habitaciones</ThemedText>
+              <ThemedText style={[styles.modalTitle, { color: colors.text }]}>Huéspedes</ThemedText>
               <TouchableOpacity onPress={() => setGuestsModalVisible(false)}>
-                <Ionicons name="close" size={28} color="#000" />
+                <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
-
-            <View style={styles.counterSection}>
-              <View style={styles.counterRow}>
-                <View>
-                  <ThemedText style={styles.counterLabel}>Adultos</ThemedText>
-                  <ThemedText style={styles.counterSubLabel}>13 años o más</ThemedText>
-                </View>
+            <View style={styles.modalBody}>
+              <View style={[styles.counterRow, { borderBottomColor: colors.divider }]}>
+                <ThemedText style={{ color: colors.text }}>Adultos</ThemedText>
                 <View style={styles.counterControls}>
-                  <TouchableOpacity
-                    style={styles.counterButton}
-                    onPress={() => setAdults(Math.max(1, adults - 1))}
-                  >
-                    <Ionicons name="remove" size={20} color="#2C5F7C" />
-                  </TouchableOpacity>
-                  <ThemedText style={styles.counterValue}>{adults}</ThemedText>
-                  <TouchableOpacity
-                    style={styles.counterButton}
-                    onPress={() => setAdults(adults + 1)}
-                  >
-                    <Ionicons name="add" size={20} color="#2C5F7C" />
-                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setAdults(Math.max(1, adults - 1))}><Ionicons name="remove-circle-outline" size={28} color={colors.text} /></TouchableOpacity>
+                  <ThemedText style={{ color: colors.text, width: 30, textAlign: 'center' }}>{adults}</ThemedText>
+                  <TouchableOpacity onPress={() => setAdults(adults + 1)}><Ionicons name="add-circle-outline" size={28} color={colors.text} /></TouchableOpacity>
                 </View>
               </View>
-
-              <View style={styles.counterRow}>
-                <View>
-                  <ThemedText style={styles.counterLabel}>Niños</ThemedText>
-                  <ThemedText style={styles.counterSubLabel}>0-12 años</ThemedText>
-                </View>
+              <View style={[styles.counterRow, { borderBottomColor: colors.divider }]}>
+                <ThemedText style={{ color: colors.text }}>Niños</ThemedText>
                 <View style={styles.counterControls}>
-                  <TouchableOpacity
-                    style={styles.counterButton}
-                    onPress={() => setChildren(Math.max(0, children - 1))}
-                  >
-                    <Ionicons name="remove" size={20} color="#2C5F7C" />
-                  </TouchableOpacity>
-                  <ThemedText style={styles.counterValue}>{children}</ThemedText>
-                  <TouchableOpacity
-                    style={styles.counterButton}
-                    onPress={() => setChildren(children + 1)}
-                  >
-                    <Ionicons name="add" size={20} color="#2C5F7C" />
-                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setChildren(Math.max(0, children - 1))}><Ionicons name="remove-circle-outline" size={28} color={colors.text} /></TouchableOpacity>
+                  <ThemedText style={{ color: colors.text, width: 30, textAlign: 'center' }}>{children}</ThemedText>
+                  <TouchableOpacity onPress={() => setChildren(children + 1)}><Ionicons name="add-circle-outline" size={28} color={colors.text} /></TouchableOpacity>
                 </View>
               </View>
-
-              <View style={styles.counterRow}>
-                <View>
-                  <ThemedText style={styles.counterLabel}>Habitaciones</ThemedText>
-                </View>
-                <View style={styles.counterControls}>
-                  <TouchableOpacity
-                    style={styles.counterButton}
-                    onPress={() => setRooms(Math.max(1, rooms - 1))}
-                  >
-                    <Ionicons name="remove" size={20} color="#2C5F7C" />
-                  </TouchableOpacity>
-                  <ThemedText style={styles.counterValue}>{rooms}</ThemedText>
-                  <TouchableOpacity
-                    style={styles.counterButton}
-                    onPress={() => setRooms(rooms + 1)}
-                  >
-                    <Ionicons name="add" size={20} color="#2C5F7C" />
-                  </TouchableOpacity>
-                </View>
-              </View>
+              <TouchableOpacity style={[styles.applyButton, { backgroundColor: colors.primaryButton }]} onPress={() => setGuestsModalVisible(false)}>
+                <ThemedText style={{ color: isDark ? colors.background : '#FFF', fontWeight: 'bold' }}>Aplicar</ThemedText>
+              </TouchableOpacity>
             </View>
-
-            <TouchableOpacity
-              style={styles.modalApplyButton}
-              onPress={() => setGuestsModalVisible(false)}
-            >
-              <ThemedText style={styles.modalApplyButtonText}>Aplicar</ThemedText>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* Modal del menú */}
-      <Modal
-        visible={menuVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setMenuVisible(false)}
-      >
+      {/* MENU MODAL COMPLETO */}
+      <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
         <View style={styles.menuOverlay}>
-          <View style={styles.menuContent}>
+          <View style={[styles.menuContainer, { backgroundColor: colors.cardBackground }]}>
             <View style={styles.menuHeader}>
-              <ThemedText type="subtitle">Menú</ThemedText>
-              <TouchableOpacity onPress={() => setMenuVisible(false)}>
-                <Ionicons name="close" size={28} color="#000" />
-              </TouchableOpacity>
+              <ThemedText style={[styles.menuTitle, { color: colors.text }]}>Menú</ThemedText>
+              <TouchableOpacity onPress={() => setMenuVisible(false)}><Ionicons name="close" size={24} color={colors.text} /></TouchableOpacity>
             </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
 
-            {/* Mi Perfil - Para todos */}
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                setMenuVisible(false);
-                router.push('/profile');
-              }}
-            >
-              <Ionicons name="person-outline" size={24} color="#2C5F7C" />
-              <ThemedText style={styles.menuItemText}>Mi Perfil</ThemedText>
-            </TouchableOpacity>
-
-            {/* Mis Reservas - Solo para huéspedes (aparece cuando NO es host) */}
-            {profile?.role !== 'host' && (
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => {
-                  setMenuVisible(false);
-                  router.push('/mis-reservas');
-                }}
-              >
-                <Ionicons name="calendar-outline" size={24} color="#2C5F7C" />
-                <ThemedText style={styles.menuItemText}>Mis Reservas</ThemedText>
+              {/* 1. Mi Perfil */}
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); router.push('/profile'); }}>
+                <Ionicons name="person-outline" size={20} color={colors.text} />
+                <ThemedText style={[styles.menuItemText, { color: colors.text }]}>Mi Perfil</ThemedText>
               </TouchableOpacity>
-            )}
 
-            {/* Publicar Alojamiento - Solo para anfitriones */}
-            {profile?.role === 'host' && (
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => {
-                  setMenuVisible(false);
-                  router.push('/sube-alojamiento');
-                }}
-              >
-                <Ionicons name="add-circle-outline" size={24} color="#2C5F7C" />
-                <ThemedText style={styles.menuItemText}>Publicar Alojamiento</ThemedText>
+              {/* 2. Mis Reservas (Si NO es host) */}
+              {profile?.role !== 'host' && (
+                <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); router.push('/mis-reservas'); }}>
+                  <Ionicons name="calendar-outline" size={20} color={colors.text} />
+                  <ThemedText style={[styles.menuItemText, { color: colors.text }]}>Mis Reservas / Propuestas</ThemedText>
+                </TouchableOpacity>
+              )}
+
+              {/* 3, 4, 5. Opciones de Host */}
+              {profile?.role === 'host' && (
+                <>
+                  <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); router.push('/sube-alojamiento'); }}>
+                    <Ionicons name="add-circle-outline" size={20} color={colors.accent} />
+                    <ThemedText style={[styles.menuItemText, { color: colors.text }]}>Publicar Alojamiento / Inmueble</ThemedText>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); router.push('/mis-alojamientos'); }}>
+                    <Ionicons name="home-outline" size={20} color={colors.text} />
+                    <ThemedText style={[styles.menuItemText, { color: colors.text }]}>Mis Alojamientos / Inmuebles</ThemedText>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); router.push('/gestionar-reservas'); }}>
+                    <Ionicons name="receipt-outline" size={20} color={colors.text} />
+                    <ThemedText style={[styles.menuItemText, { color: colors.text }]}>Gestionar Reservas / Propuestas</ThemedText>
+                  </TouchableOpacity>
+                </>
+              )}
+
+              {/* 6. Mis Favoritos */}
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); router.push('/mis-favoritos'); }}>
+                <Ionicons name="heart-outline" size={20} color={colors.accent} />
+                <ThemedText style={[styles.menuItemText, { color: colors.text }]}>Mis Favoritos</ThemedText>
               </TouchableOpacity>
-            )}
 
-            {/* Gestionar Mis Alojamientos - Solo para anfitriones */}
-            {profile?.role === 'host' && (
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => {
-                  setMenuVisible(false);
-                  router.push('/mis-alojamientos');
-                }}
-              >
-                <Ionicons name="list-outline" size={24} color="#2C5F7C" />
-                <ThemedText style={styles.menuItemText}>Gestionar Mis Alojamientos</ThemedText>
+              {/* 7. Trabaja con Nosotros */}
+              <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} onPress={() => { setMenuVisible(false); router.push('/trabaja-con-nosotros'); }}>
+                <Ionicons name="briefcase-outline" size={20} color={colors.text} />
+                <ThemedText style={[styles.menuItemText, { color: colors.text }]}>Trabaja con Nosotros</ThemedText>
               </TouchableOpacity>
-            )}
 
-            {/* Gestionar Reservas - Solo para anfitriones */}
-            {profile?.role === 'host' && (
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => {
-                  setMenuVisible(false);
-                  router.push('/gestionar-reservas');
-                }}
-              >
-                <Ionicons name="receipt-outline" size={24} color="#D4AF37" />
-                <ThemedText style={styles.menuItemText}>Gestionar Reservas</ThemedText>
-              </TouchableOpacity>
-            )}
-
-            {/* Finca Raíz y Remodelaciones - Para todos */}
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                setMenuVisible(false);
-                router.push('/finca-raiz');
-              }}
-            >
-              <Ionicons name="business-outline" size={24} color="#2C5F7C" />
-              <ThemedText style={styles.menuItemText}>Finca Raíz y Remodelaciones</ThemedText>
-            </TouchableOpacity>
-
-            {/* Trabaja con Nosotros - Para todos */}
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                setMenuVisible(false);
-                router.push('/trabaja-con-nosotros');
-              }}
-            >
-              <Ionicons name="briefcase-outline" size={24} color="#2C5F7C" />
-              <ThemedText style={styles.menuItemText}>Trabaja con Nosotros</ThemedText>
-            </TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       </Modal>
+
     </ThemedView>
   );
 }
@@ -684,391 +1205,644 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#CCCCCC',
-  },
-  menuOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  logoLiving: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#D4AF37',
-    textTransform: 'uppercase',
-  },
-  logoContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 0,
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#666',
-  },
-  headerBlack: {
-    backgroundColor: '#02111aff',
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    paddingBottom: 15,
-    alignItems: 'center',
-  },
-  logoOdihna: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    textTransform: 'uppercase',
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  menuButton: {
-    position: 'absolute',
-    top: 60,
-    right: 20,
-    zIndex: 10,
-    padding: 5,
-  },
-  searchSection: {
-    backgroundColor: '#02111aff',
+  // Header
+  header: {
+    paddingTop: Platform.OS === 'ios' ? 50 : 40,
+    paddingBottom: 10,
     paddingHorizontal: 20,
-    paddingBottom: 25,
-    paddingTop: 10,
+    zIndex: 100,
   },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    marginBottom: 15,
-    gap: 10,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#000',
-  },
-  dateRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 15,
-  },
-  dateInput: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 12,
-  },
-  dateInputContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  dateTextContainer: {
-    flex: 1,
-  },
-  dateLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 2,
-  },
-  dateValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#000',
-  },
-  guestsButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 15,
-    gap: 10,
-  },
-  guestsTextContainer: {
-    flex: 1,
-  },
-  guestsLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 2,
-  },
-  guestsValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#000',
-  },
-  searchButtonRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  searchButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#D4AF37',
-    borderRadius: 12,
-    paddingVertical: 15,
-    gap: 10,
-  },
-  searchButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  clearButton: {
-    width: 50,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  activeSearchIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(212, 175, 55, 0.2)',
-    borderRadius: 8,
-    padding: 10,
-    marginTop: 15,
-    gap: 8,
-  },
-  activeSearchText: {
-    fontSize: 13,
-    color: '#D4AF37',
-    fontWeight: '600',
-  },
-  categoriesSection: {
-    paddingVertical: 20,
-  },
-  categoriesScroll: {
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  categoryCard: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 25,
-    borderWidth: 2,
-    borderColor: '#e0e0e0',
-    minWidth: 110,
-  },
-  categoryCardActive: {
-    backgroundColor: '#2C5F7C',
-    borderColor: '#2C5F7C',
-  },
-  categoryText: {
-    marginTop: 6,
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#333',
-    textAlign: 'center',
-  },
-  categoryTextActive: {
-    color: '#fff',
-  },
-  propertiesSection: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 15,
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-  },
-  emptyStateText: {
-    fontSize: 18,
-    color: '#999',
-    marginTop: 20,
-    fontWeight: '600',
-  },
-  emptyStateSubtext: {
-    fontSize: 14,
-    color: '#999',
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  propertyCard: {
-    backgroundColor: '#fff',
-    borderRadius: 15,
-    overflow: 'hidden',
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  propertyImage: {
-    width: '100%',
-    height: 220,
-  },
-  propertyInfo: {
-    padding: 15,
-  },
-  propertyTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  propertyLocation: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginBottom: 12,
-  },
-  locationText: {
-    fontSize: 14,
-    color: '#666',
-  },
-  propertyFooter: {
+  headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 10,
   },
-  priceContainer: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
-  price: {
+  logoText: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#2C5F7C',
+    fontWeight: '900',
+    letterSpacing: 2,
+    fontFamily: Platform.OS === 'ios' ? 'Didot' : 'serif',
   },
-  priceLabel: {
+  logoSubtext: {
+    fontSize: 10,
+    fontWeight: '400',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  headerRightButtons: {
+    flexDirection: 'row',
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  // Collapsible Search
+  collapsibleContainer: {
+    marginTop: 10,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 45,
+    borderRadius: 25,
+    paddingHorizontal: 15,
+    borderWidth: 1,
+    marginBottom: 15,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 10,
     fontSize: 14,
-    color: '#666',
+    height: '100%',
   },
-  ratingContainer: {
+  filterScroll: {
+    marginBottom: 15,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginRight: 8,
+    gap: 6,
+  },
+  filterText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  categoriesScroll: {
+    paddingBottom: 10,
+    gap: 10,
+  },
+  categoryItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+  },
+  categoryText: {
+    fontSize: 12,
+  },
+
+  // Content
+  scrollContent: {
+    paddingHorizontal: 15,
+    paddingTop: 10,
+  },
+
+  // Property Card
+  cardContainer: {
+    marginBottom: 25,
+  },
+  card: {
+    height: CARD_HEIGHT,
+    borderRadius: 35,
+    overflow: 'hidden',
+    backgroundColor: '#000',
+    position: 'relative',
+    elevation: 10,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+  },
+  cardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  cardGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '60%',
+  },
+
+  // Card Top
+  cardTopRow: {
+    position: 'absolute',
+    top: 25,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  locationTag: {
+    marginTop: 10,
+  },
+  locationTagLabel: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 10,
+    letterSpacing: 1.5,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  locationRowValue: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
-  rating: {
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  reviewCount: {
-    fontSize: 14,
-    color: '#666',
-  },
-  bottomSpacing: {
-    height: 30,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: 40,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  counterSection: {
-    padding: 20,
-  },
-  counterRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  counterLabel: {
+  locationValue: {
+    color: '#FFF',
     fontSize: 16,
     fontWeight: '600',
+    maxWidth: 200,
   },
-  counterSubLabel: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 2,
+  glassIconBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
-  counterControls: {
+
+  // Card Bottom
+  cardBottomContent: {
+    position: 'absolute',
+    bottom: 30,
+    left: 25,
+    right: 25,
+  },
+  ratingPill: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    marginBottom: 12,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  ratingText: {
+    color: '#FFF',
+    fontWeight: 'bold',
+    fontSize: 12,
+  },
+  cardTitle: {
+    color: '#FFF',
+    fontSize: 32,
+    fontWeight: '700',
+    marginBottom: 15,
+    lineHeight: 36,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  cardFooterRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  amenitiesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  amenityText: {
+    color: '#DDD',
+    fontSize: 12,
+  },
+  amenityDivider: {
+    color: '#666',
+    marginHorizontal: 8,
+  },
+  priceContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: 'rgba(212, 175, 55, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.5)',
+  },
+  priceSymbol: {
+    color: '#D4AF37',
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 2,
+    marginRight: 2,
+  },
+  priceValue: {
+    color: '#FFF',
+    fontSize: 20,
+    fontWeight: '700',
+  },
+
+  // States
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 100,
     gap: 15,
   },
-  counterButton: {
+  emptyText: {
+    fontSize: 16,
+  },
+
+  // Modal Styles
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: 20 },
+  modalContent: { borderRadius: 20, padding: 20 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
+  modalTitle: { fontSize: 18, fontWeight: 'bold' },
+  modalBody: { gap: 15 },
+  counterRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1 },
+  counterControls: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  applyButton: { padding: 15, borderRadius: 12, alignItems: 'center', marginTop: 10 },
+
+  menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  menuContainer: { borderTopLeftRadius: 25, borderTopRightRadius: 25, padding: 25, minHeight: 350, maxHeight: '80%' },
+  menuHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
+  menuTitle: { fontSize: 22, fontWeight: 'bold' },
+  menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, gap: 15, borderBottomWidth: 0.5, borderBottomColor: '#333' },
+  menuItemText: { fontSize: 16 },
+
+  // ================================
+  // CITY CAROUSEL STYLES
+  // ================================
+  cityCarouselsWrapper: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 20,
+    letterSpacing: 0.5,
+  },
+  cityCarouselSection: {
+    marginBottom: 25,
+  },
+  cityHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+    paddingRight: 5,
+  },
+  cityName: {
+    fontSize: 20,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  citySubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  viewAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 5,
+  },
+  viewAllText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  carouselScrollContent: {
+    paddingLeft: 0,
+    paddingRight: 20,
+    gap: 15,
+  },
+
+  // Carousel Card Styles
+  carouselCardContainer: {
+    width: CAROUSEL_CARD_WIDTH,
+    marginRight: 15,
+  },
+  carouselCard: {
+    width: '100%',
+    height: CAROUSEL_CARD_HEIGHT,
+    borderRadius: 24,
+    overflow: 'hidden',
+    backgroundColor: '#000',
+    elevation: 8,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+  },
+  carouselCardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  carouselCardGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
+  carouselFavoriteBtn: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
     width: 36,
     height: 36,
     borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#2C5F7C',
-    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.3)',
     justifyContent: 'center',
-  },
-  counterValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    minWidth: 30,
-    textAlign: 'center',
-  },
-  modalApplyButton: {
-    backgroundColor: '#2C5F7C',
-    marginHorizontal: 20,
-    paddingVertical: 15,
-    borderRadius: 12,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
-  modalApplyButtonText: {
-    color: '#fff',
-    fontSize: 16,
+  carouselCardContent: {
+    position: 'absolute',
+    bottom: 15,
+    left: 15,
+    right: 15,
+  },
+  carouselRatingPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+    gap: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  carouselRatingText: {
+    color: '#FFF',
     fontWeight: 'bold',
+    fontSize: 10,
   },
-  menuContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: 40,
+  carouselCardTitle: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 8,
+    lineHeight: 20,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
-  menuHeader: {
+  carouselCardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
   },
-  menuItem: {
+  carouselAmenities: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 18,
-    gap: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    gap: 4,
   },
-  menuItemText: {
+  carouselAmenityText: {
+    color: '#DDD',
+    fontSize: 10,
+  },
+  carouselDivider: {
+    color: '#666',
+    marginHorizontal: 4,
+    fontSize: 10,
+  },
+  carouselPriceContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: 'rgba(212, 175, 55, 0.25)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.5)',
+  },
+  carouselPriceSymbol: {
+    color: '#D4AF37',
+    fontSize: 10,
+    fontWeight: '600',
+    marginTop: 1,
+    marginRight: 1,
+  },
+  carouselPriceValue: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+
+  // Section Divider
+  sectionDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    marginBottom: 20,
+    paddingHorizontal: 10,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginHorizontal: 15,
+    opacity: 0.7,
+  },
+
+  // ================================
+  // FEATURED SECTION STYLES
+  // ================================
+  featuredSection: {
+    marginBottom: 30,
+  },
+  featuredHeader: {
+    marginBottom: 20,
+  },
+  featuredTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  featuredIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  featuredTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  featuredSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginTop: 2,
+  },
+  featuredScrollContent: {
+    paddingRight: 20,
+    gap: 15,
+  },
+
+  // Featured Card
+  featuredCardContainer: {
+    width: width * 0.75,
+  },
+  featuredCard: {
+    width: '100%',
+    height: height * 0.40,
+    borderRadius: 28,
+    overflow: 'hidden',
+    backgroundColor: '#000',
+  },
+  featuredCardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  featuredCardGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
+  featuredBadgeContainer: {
+    position: 'absolute',
+    top: 15,
+    left: 15,
+  },
+  featuredBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 6,
+  },
+  featuredBadgeText: {
+    color: '#FFF',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  featuredFavoriteBtn: {
+    position: 'absolute',
+    top: 15,
+    right: 15,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  featuredCardContent: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+  },
+  featuredRatingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  featuredRatingPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  featuredRatingText: {
+    color: '#FFF',
+    fontWeight: 'bold',
+    fontSize: 12,
+  },
+  featuredCityText: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  featuredCardTitle: {
+    color: '#FFF',
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 12,
+    lineHeight: 24,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  featuredCardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  featuredAmenities: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  featuredAmenityText: {
+    color: '#CCC',
+    fontSize: 12,
+  },
+  featuredDivider: {
+    color: '#666',
+    marginHorizontal: 3,
+  },
+  featuredPriceContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: 'rgba(212, 175, 55, 0.3)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.6)',
+  },
+  featuredPriceSymbol: {
+    color: '#D4AF37',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 1,
+    marginRight: 2,
+  },
+  featuredPriceValue: {
+    color: '#FFF',
     fontSize: 16,
+    fontWeight: '700',
+  },
+  featuredBorderOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 28,
+    borderWidth: 2,
+    borderColor: 'transparent',
   },
 });

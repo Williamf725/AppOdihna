@@ -5,6 +5,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { availableAmenities, colombianDepartments } from '@/constants/mockData';
 import { useAuth } from '@/hooks/useAuth';
+import { isCloudinaryConfigured, uploadImageToCloudinary } from '@/lib/cloudinaryService';
 import { isPropertyOwner, supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -217,53 +218,65 @@ function EditarAlojamientoContent() {
     return true;
   };
 
-  // Función para subir nuevas imágenes a Supabase Storage
+  // Función para subir nuevas imágenes (Cloudinary o Supabase)
   const uploadNewImages = async (newImageUris: string[]): Promise<string[]> => {
     const uploadedUrls: string[] = [];
+    const useCloudinary = isCloudinaryConfigured();
 
     for (let i = 0; i < newImageUris.length; i++) {
       try {
         const imageUri = newImageUris[i];
 
-        // Si la imagen ya es una URL de Supabase, no la subimos de nuevo
-        if (imageUri.includes('supabase.co')) {
+        // Si la imagen ya es una URL remota, no la subimos de nuevo
+        if (imageUri.includes('supabase.co') || imageUri.includes('cloudinary.com')) {
           uploadedUrls.push(imageUri);
           continue;
         }
 
-        const timestamp = Date.now();
-        const fileName = `${timestamp}_${Math.random().toString(36).substring(7)}.jpg`;
-        const filePath = `properties/${fileName}`;
+        console.log(`📤 Subiendo imagen ${i + 1}/${newImageUris.length}...`);
 
-        console.log(`📤 Subiendo imagen ${i + 1}/${newImageUris.length}`);
+        if (useCloudinary) {
+          // Usar Cloudinary
+          const result = await uploadImageToCloudinary(imageUri, 'properties');
+          if (result.success && result.url) {
+            uploadedUrls.push(result.url);
+          } else {
+            throw new Error(result.error || 'Error subiendo a Cloudinary');
+          }
+        } else {
+          // Fallback: Supabase Storage
+          const timestamp = Date.now();
+          const fileName = `${timestamp}_${Math.random().toString(36).substring(7)}.jpg`;
+          const filePath = `properties/${fileName}`;
 
-        const response = await fetch(imageUri);
-        const blob = await response.blob();
+          const response = await fetch(imageUri);
+          const blob = await response.blob();
 
-        const arrayBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as ArrayBuffer);
-          reader.onerror = reject;
-          reader.readAsArrayBuffer(blob);
-        });
-
-        const { data, error } = await supabase.storage
-          .from('property-images')
-          .upload(filePath, arrayBuffer, {
-            contentType: 'image/jpeg',
-            upsert: false,
+          const arrayBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as ArrayBuffer);
+            reader.onerror = reject;
+            reader.readAsArrayBuffer(blob);
           });
 
-        if (error) {
-          console.error('Supabase upload error:', error);
-          throw error;
+          const { data, error } = await supabase.storage
+            .from('property-images')
+            .upload(filePath, arrayBuffer, {
+              contentType: 'image/jpeg',
+              upsert: false,
+            });
+
+          if (error) {
+            console.error('Supabase upload error:', error);
+            throw error;
+          }
+
+          const { data: publicUrlData } = supabase.storage
+            .from('property-images')
+            .getPublicUrl(filePath);
+
+          uploadedUrls.push(publicUrlData.publicUrl);
         }
-
-        const { data: publicUrlData } = supabase.storage
-          .from('property-images')
-          .getPublicUrl(filePath);
-
-        uploadedUrls.push(publicUrlData.publicUrl);
       } catch (error) {
         console.error('Error uploading image:', error);
         throw error;
@@ -328,8 +341,7 @@ function EditarAlojamientoContent() {
       console.error('Error updating property:', error);
       Alert.alert(
         'Error',
-        `Hubo un problema al actualizar tu alojamiento: ${
-          error.message || 'Por favor intenta de nuevo.'
+        `Hubo un problema al actualizar tu alojamiento: ${error.message || 'Por favor intenta de nuevo.'
         }`
       );
     }

@@ -13,12 +13,16 @@ export function ThemedText({
   lightColor,
   darkColor,
   type = 'default',
+  allowFontScaling = false,
+  maxFontSizeMultiplier = 1,
   ...rest
 }: ThemedTextProps) {
   const color = useThemeColor({ light: lightColor, dark: darkColor }, 'text');
 
   return (
     <Text
+      allowFontScaling={allowFontScaling}
+      maxFontSizeMultiplier={maxFontSizeMultiplier}
       style={[
         { color },
         type === 'default' ? styles.default : undefined,

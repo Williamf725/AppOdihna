@@ -51,8 +51,9 @@ export default function ExploreScreen() {
     try {
       const { data, error } = await supabase
         .from('properties')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select('id, title, location, city, department, price, rating, review_count, images, tags, max_guests, bedrooms, blocked_dates')
+        .order('created_at', { ascending: false })
+        .limit(50);
 
       if (error) throw error;
 
