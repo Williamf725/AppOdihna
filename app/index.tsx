@@ -8,14 +8,13 @@ import {
   Animated,
   Easing,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ThemedText } from '../components/ThemedText';
 import { useAuth } from '../hooks/useAuth';
-
-// Moved inside component using useWindowDimensions hook for responsive design
+import { normalize, normalizeFont, normalizeFontLogo } from '../lib/normalize';
 
 const IMAGES = [
   // Luxury villa interior with pool view - vertical
@@ -233,12 +232,12 @@ export default function WelcomeScreen() {
         <Animated.View style={[styles.loadingLogo, { opacity: 0.65 }]}>
           <Image
             source={{ uri: 'https://res.cloudinary.com/dvpnkr2i9/image/upload/v1770446460/LogoOdihna_thsha2.jpg' }}
-            style={{ width: 100, height: 100, borderRadius: 50 }}
+            style={{ width: normalize(64), height: normalize(64), borderRadius: normalize(32) }}
             contentFit="contain"
             cachePolicy="memory-disk"
           />
         </Animated.View>
-        <ActivityIndicator size="large" color={ACCENT_COLOR} style={{ marginTop: 20 }} />
+        <ActivityIndicator size="large" color={ACCENT_COLOR} style={{ marginTop: normalize(20) }} />
       </View>
     );
   }
@@ -282,7 +281,7 @@ export default function WelcomeScreen() {
             transform: [{
               translateY: shimmer1.interpolate({
                 inputRange: [0, 1],
-                outputRange: [0, -30],
+                outputRange: [0, normalize(-30)],
               }),
             }],
           },
@@ -297,7 +296,7 @@ export default function WelcomeScreen() {
             transform: [{
               translateY: shimmer2.interpolate({
                 inputRange: [0, 1],
-                outputRange: [0, -40],
+                outputRange: [0, normalize(-40)],
               }),
             }],
           },
@@ -312,7 +311,7 @@ export default function WelcomeScreen() {
             transform: [{
               translateY: shimmer3.interpolate({
                 inputRange: [0, 1],
-                outputRange: [0, -25],
+                outputRange: [0, normalize(-25)],
               }),
             }],
           },
@@ -334,7 +333,7 @@ export default function WelcomeScreen() {
                 transform: [{
                   translateY: slideAnim.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [30, 0],
+                    outputRange: [normalize(30), 0],
                   }),
                 }],
               },
@@ -356,28 +355,22 @@ export default function WelcomeScreen() {
               >
                 <Image
                   source={{ uri: 'https://res.cloudinary.com/dvpnkr2i9/image/upload/v1770446460/LogoOdihna_thsha2.jpg' }}
-                  style={{ width: 140, height: 140, borderRadius: 70 }} // Redondo
+                  style={{ width: normalize(88), height: normalize(88), borderRadius: normalize(44) }} // Redondo
                   contentFit="cover"
                 />
               </Animated.View>
 
-              <Animated.Text
-                style={[
-                  styles.logoText,
-                  { opacity: logoScale },
-                ]}
-              >
-                ODIHNA
-              </Animated.Text>
+              <Animated.View style={{ opacity: logoScale }}>
+                <ThemedText style={styles.logoText}>
+                  ODIHNA
+                </ThemedText>
+              </Animated.View>
 
-              <Animated.Text
-                style={[
-                  styles.subtitle,
-                  { opacity: logoScale },
-                ]}
-              >
-                ESTANCIAS & VENTAS
-              </Animated.Text>
+              <Animated.View style={{ opacity: logoScale }}>
+                <ThemedText style={styles.subtitle}>
+                  ESTANCIAS & VENTAS
+                </ThemedText>
+              </Animated.View>
 
               <Animated.View
                 style={[
@@ -385,45 +378,43 @@ export default function WelcomeScreen() {
                   {
                     width: dividerWidth.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [0, 80],
+                      outputRange: [0, normalize(50)],
                     }),
                   },
                 ]}
               />
 
-              <Animated.Text
-                style={[
-                  styles.taglineMain,
-                  {
-                    opacity: slideAnim,
-                    transform: [{
-                      translateY: slideAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [20, 0],
-                      }),
-                    }],
-                  },
-                ]}
+              <Animated.View
+                style={{
+                  opacity: slideAnim,
+                  transform: [{
+                    translateY: slideAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [normalize(20), 0],
+                    }),
+                  }],
+                }}
               >
-                Experiencias
-              </Animated.Text>
+                <ThemedText style={styles.taglineMain}>
+                  Experiencias
+                </ThemedText>
+              </Animated.View>
 
-              <Animated.Text
-                style={[
-                  styles.taglineAccent,
-                  {
-                    opacity: slideAnim,
-                    transform: [{
-                      translateY: slideAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [20, 0],
-                      }),
-                    }],
-                  },
-                ]}
+              <Animated.View
+                style={{
+                  opacity: slideAnim,
+                  transform: [{
+                    translateY: slideAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [normalize(20), 0],
+                    }),
+                  }],
+                }}
               >
-                Sin Límites
-              </Animated.Text>
+                <ThemedText style={styles.taglineAccent}>
+                  Sin Límites
+                </ThemedText>
+              </Animated.View>
             </View>
 
             {/* Indicadores de imagen */}
@@ -476,7 +467,7 @@ export default function WelcomeScreen() {
                               transform: [{
                                 translateX: shimmer1.interpolate({
                                   inputRange: [0, 1],
-                                  outputRange: [-300, 300],
+                                  outputRange: [normalize(-300), normalize(300)],
                                 }),
                               }],
                             },
@@ -491,7 +482,7 @@ export default function WelcomeScreen() {
                         </Animated.View>
 
                         {/* Texto Tipografía dorada elegante */}
-                        <Text style={styles.marbleButtonText}>Comenzar</Text>
+                        <ThemedText style={styles.marbleButtonText}>Comenzar</ThemedText>
                       </View>
                     </LinearGradient>
                   </Animated.View>
@@ -509,19 +500,16 @@ export default function WelcomeScreen() {
                   onPress={handleLogin}
                   activeOpacity={0.85}
                 >
-                  <Text style={styles.secondaryButtonText}>Iniciar sesión</Text>
+                  <ThemedText style={styles.secondaryButtonText}>Iniciar sesión</ThemedText>
                 </TouchableOpacity>
               </Animated.View>
             </View>
 
-            <Animated.Text
-              style={[
-                styles.footerText,
-                { opacity: slideAnim },
-              ]}
-            >
-              © 2025 Odihna. Todos los derechos reservados.
-            </Animated.Text>
+            <Animated.View style={{ opacity: slideAnim }}>
+              <ThemedText style={styles.footerText}>
+                © 2025 Odihna. Todos los derechos reservados.
+              </ThemedText>
+            </Animated.View>
           </Animated.View>
         </SafeAreaView>
       </LinearGradient>
@@ -558,14 +546,14 @@ const styles = StyleSheet.create({
   },
   shimmerParticle: {
     position: 'absolute',
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: normalize(6),
+    height: normalize(6),
+    borderRadius: normalize(3),
     backgroundColor: ACCENT_COLOR,
     shadowColor: ACCENT_COLOR,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
-    shadowRadius: 10,
+    shadowRadius: normalize(10),
     elevation: 5,
   },
   // Posiciones con porcentajes para responsividad
@@ -590,107 +578,119 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     justifyContent: 'space-between',
-    paddingHorizontal: 28,
-    paddingVertical: 40,
+    paddingHorizontal: normalize(28),
+    paddingVertical: normalize(40),
   },
   header: {
     alignItems: 'center',
-    marginTop: 50,
+    marginTop: normalize(50),
   },
   logoContainer: {
-    marginBottom: 20,
+    marginBottom: normalize(20),
     alignItems: 'center',
     justifyContent: 'center',
   },
   logoText: {
-    fontSize: 32,
+    fontSize: normalizeFontLogo(20),
     fontWeight: '300',
     color: '#fff',
-    letterSpacing: 12,
-    marginBottom: 8,
+    letterSpacing: normalize(8),
+    marginBottom: normalize(6),
     fontFamily: 'serif',
+    textShadowColor: '#ffffff',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: normalize(10),
   },
   subtitle: {
-    fontSize: 11,
+    fontSize: normalizeFont(8),
     fontWeight: '400',
-    color: ACCENT_COLOR,
-    letterSpacing: 4,
-    marginBottom: 20,
+    color: '#FFD700',
+    letterSpacing: normalize(2.5),
+    marginBottom: normalize(13),
     textTransform: 'uppercase',
+    textShadowColor: '#FFD700',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: normalize(8),
   },
   divider: {
-    height: 2,
+    height: normalize(1.25),
     backgroundColor: ACCENT_COLOR,
-    borderRadius: 1,
-    marginBottom: 24,
+    borderRadius: normalize(0.65),
+    marginBottom: normalize(15),
     shadowColor: ACCENT_COLOR,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
-    shadowRadius: 8,
+    shadowRadius: normalize(5.5),
   },
   taglineMain: {
-    fontSize: 52,
+    fontSize: normalizeFontLogo(33),
     color: '#fff',
     textAlign: 'center',
     fontWeight: '400',
-    letterSpacing: 1,
-    lineHeight: 58,
+    letterSpacing: normalize(0.65),
+    lineHeight: normalizeFontLogo(36),
     fontFamily: 'serif',
+    textShadowColor: '#ffffff',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: normalize(10),
   },
   taglineAccent: {
-    fontSize: 48,
-    color: ACCENT_COLOR,
+    fontSize: normalizeFontLogo(31),
+    color: '#FFD700',
     textAlign: 'center',
     fontWeight: '300',
     fontStyle: 'italic',
-    letterSpacing: 2,
-    lineHeight: 54,
+    letterSpacing: normalize(1.25),
+    lineHeight: normalizeFontLogo(34),
     fontFamily: 'serif',
+    textShadowColor: '#FFD700',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: normalize(10),
   },
   indicators: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 10,
-    marginBottom: 40,
+    gap: normalize(10),
+    marginBottom: normalize(40),
   },
   indicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: normalize(8),
+    height: normalize(8),
+    borderRadius: normalize(4),
     backgroundColor: 'rgba(255,255,255,0.35)',
   },
   indicatorActive: {
     backgroundColor: ACCENT_COLOR,
-    width: 28,
+    width: normalize(28),
     shadowColor: ACCENT_COLOR,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
-    shadowRadius: 8,
+    shadowRadius: normalize(8),
   },
   buttonsContainer: {
-    gap: 16,
-    marginBottom: 20,
+    gap: normalize(16),
+    marginBottom: normalize(20),
   },
   marbleButtonContainer: {
-    borderRadius: 30, // Alargado
+    borderRadius: normalize(17), // Alargado
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
+    shadowOffset: { width: 0, height: normalize(6) },
     shadowOpacity: 0.5,
-    shadowRadius: 15,
-    elevation: 15,
+    shadowRadius: normalize(9),
+    elevation: 9,
   },
   marbleButtonShadow: {
-    borderRadius: 30,
+    borderRadius: normalize(17),
   },
   goldBorder: {
-    padding: 3, // Grosor del marco dorado
-    borderRadius: 30,
+    padding: normalize(1.7), // Grosor del marco dorado
+    borderRadius: normalize(17),
   },
   marbleInner: {
-    height: 60,
+    height: normalize(35),
     width: '100%',
-    paddingHorizontal: 32, // ✅ Padding para evitar que el texto se corte
-    borderRadius: 27, // 30 - 3
+    paddingHorizontal: normalize(18), // ✅ Padding para evitar que el texto se corte
+    borderRadius: normalize(15.3), // 17 - 1.7
     overflow: 'hidden', // Para recortar la imagen de mármol
     justifyContent: 'center',
     alignItems: 'center',
@@ -701,13 +701,13 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   marbleButtonText: {
-    fontSize: 20,
+    fontSize: normalizeFont(12),
     fontWeight: '700',
     color: '#AA771C', // Dorado oscuro para el texto
-    letterSpacing: 1.5,
+    letterSpacing: normalize(0.9),
     textShadowColor: 'rgba(255, 255, 255, 0.8)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 1,
+    textShadowOffset: { width: 0, height: normalize(0.6) },
+    textShadowRadius: normalize(0.6),
     zIndex: 10,
     fontFamily: 'serif', // Tipografía más elegante si es posible
   },
@@ -715,39 +715,39 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     bottom: 0,
-    width: 60,
+    width: normalize(35),
     transform: [{ skewX: '-20deg' }],
     zIndex: 5,
   },
   buttonIconContainer: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: normalize(28),
+    height: normalize(28),
+    borderRadius: normalize(14),
     backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   secondaryButton: {
     backgroundColor: 'rgba(0,0,0,0.3)',
-    borderWidth: 2,
+    borderWidth: normalize(1.15),
     borderColor: 'rgba(255,255,255,0.5)',
-    paddingVertical: 18,
-    borderRadius: 16,
+    paddingVertical: normalize(10),
+    borderRadius: normalize(9),
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: normalize(2.3) },
     shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 8,
+    shadowRadius: normalize(6),
+    elevation: 5,
   },
   secondaryButtonText: {
-    fontSize: 16,
+    fontSize: normalizeFont(9),
     fontWeight: '600',
     color: '#fff',
-    letterSpacing: 0.5,
+    letterSpacing: normalize(0.3),
   },
   footerText: {
-    fontSize: 11,
+    fontSize: normalizeFont(8),
     color: 'rgba(255,255,255,0.4)',
     textAlign: 'center',
     fontWeight: '400',

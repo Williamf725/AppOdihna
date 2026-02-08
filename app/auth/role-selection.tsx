@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { normalize, normalizeFont } from '../../lib/normalize';
 
 export default function RoleSelectionScreen() {
   return (
@@ -87,32 +88,32 @@ const styles = StyleSheet.create({
   },
   gradient: {
     flex: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: normalize(24),
   },
   header: {
-    marginTop: 80,
-    marginBottom: 60,
+    marginTop: normalize(80),
+    marginBottom: normalize(60),
     alignItems: 'center',
   },
   logoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: normalize(8),
   },
   logoOdihna: {
-    fontSize: 36,
+    fontSize: normalizeFont(36),
     fontWeight: 'bold',
     color: '#FFFFFF',
     textTransform: 'uppercase',
   },
   logoLiving: {
-    fontSize: 36,
+    fontSize: normalizeFont(36),
     fontWeight: 'bold',
     color: '#D4AF37',
     textTransform: 'uppercase',
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: normalizeFont(16),
     color: '#CCCCCC',
     textAlign: 'center',
   },
@@ -120,60 +121,60 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   question: {
-    fontSize: 24,
+    fontSize: normalizeFont(24),
     fontWeight: 'bold',
     color: '#FFFFFF',
     textAlign: 'center',
-    marginBottom: 40,
+    marginBottom: normalize(40),
   },
   roleCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
+    borderRadius: normalize(16),
+    padding: normalize(20),
+    marginBottom: normalize(20),
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: normalize(4) },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowRadius: normalize(8),
     elevation: 5,
   },
   iconContainer: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+    width: normalize(70),
+    height: normalize(70),
+    borderRadius: normalize(35),
     backgroundColor: '#f5f5f5',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    marginRight: normalize(16),
   },
   roleInfo: {
     flex: 1,
   },
   roleTitle: {
-    fontSize: 20,
+    fontSize: normalizeFont(20),
     fontWeight: 'bold',
     color: '#000',
-    marginBottom: 4,
+    marginBottom: normalize(4),
   },
   roleDescription: {
-    fontSize: 14,
+    fontSize: normalizeFont(14),
     color: '#666',
   },
   footer: {
-    paddingVertical: 30,
+    paddingVertical: normalize(30),
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    gap: normalize(8),
   },
   footerText: {
-    fontSize: 15,
+    fontSize: normalizeFont(15),
     color: '#CCCCCC',
   },
   loginLink: {
-    fontSize: 15,
+    fontSize: normalizeFont(15),
     color: '#D4AF37',
     fontWeight: 'bold',
   },

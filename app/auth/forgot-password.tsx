@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { normalize, normalizeFont } from '../../lib/normalize';
 import { supabase } from '../../lib/supabase';
 
 export default function ForgotPasswordScreen() {
@@ -20,9 +21,9 @@ export default function ForgotPasswordScreen() {
     setLoading(true);
     try {
       // Cambiar esta línea:
-const { error } = await supabase.auth.resetPasswordForEmail(email, {
-  redirectTo: 'odihna-living://auth/reset-password', // ✅ Cambio aquí
-});
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: 'odihna-living://auth/reset-password', // ✅ Cambio aquí
+      });
 
 
       if (error) throw error;
@@ -114,12 +115,12 @@ const styles = StyleSheet.create({
   },
   backButton: {
     position: 'absolute',
-    top: 50,
-    left: 20,
+    top: normalize(50),
+    left: normalize(20),
     zIndex: 10,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: normalize(40),
+    height: normalize(40),
+    borderRadius: normalize(20),
     backgroundColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -127,51 +128,51 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: 30,
+    paddingHorizontal: normalize(30),
   },
   iconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: normalize(120),
+    height: normalize(120),
+    borderRadius: normalize(60),
     backgroundColor: 'rgba(44, 95, 124, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     alignSelf: 'center',
-    marginBottom: 30,
+    marginBottom: normalize(30),
   },
   title: {
-    fontSize: 28,
+    fontSize: normalizeFont(28),
     fontWeight: 'bold',
     color: '#fff',
     textAlign: 'center',
-    marginBottom: 10,
+    marginBottom: normalize(10),
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: normalizeFont(16),
     color: '#ccc',
     textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 40,
+    lineHeight: normalizeFont(24),
+    marginBottom: normalize(40),
   },
   form: {
-    gap: 20,
+    gap: normalize(20),
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 12,
+    borderRadius: normalize(12),
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
   },
   inputIcon: {
-    paddingLeft: 15,
+    paddingLeft: normalize(15),
   },
   input: {
     flex: 1,
-    height: 55,
-    paddingHorizontal: 15,
-    fontSize: 16,
+    height: normalize(55),
+    paddingHorizontal: normalize(15),
+    fontSize: normalizeFont(16),
     color: '#fff',
   },
   button: {
@@ -179,25 +180,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#2C5F7C',
-    height: 55,
-    borderRadius: 12,
-    gap: 10,
+    height: normalize(55),
+    borderRadius: normalize(12),
+    gap: normalize(10),
   },
   buttonDisabled: {
     backgroundColor: '#666',
   },
   buttonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: normalizeFont(16),
     fontWeight: '600',
   },
   backToLoginButton: {
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: normalize(10),
   },
   backToLoginText: {
     color: '#2C5F7C',
-    fontSize: 14,
+    fontSize: normalizeFont(14),
     fontWeight: '600',
   },
 });

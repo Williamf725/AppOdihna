@@ -53,10 +53,10 @@ export default function NotificacionesScreen() {
 
     const handleNotificationPress = async (notification: NotificationRecord) => {
         // Marcar como leída
-        if (!notification.read) {
+        if (!notification.is_read) {
             await markAsRead(notification.id);
             setNotifications((prev) =>
-                prev.map((n) => (n.id === notification.id ? { ...n, read: true } : n))
+                prev.map((n) => (n.id === notification.id ? { ...n, is_read: true } : n))
             );
         }
 
@@ -82,7 +82,7 @@ export default function NotificacionesScreen() {
                     onPress: async () => {
                         await markAllAsRead(user.id);
                         setNotifications((prev) =>
-                            prev.map((n) => ({ ...n, read: true }))
+                            prev.map((n) => ({ ...n, is_read: true }))
                         );
                     },
                 },
@@ -105,7 +105,7 @@ export default function NotificacionesScreen() {
         return date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
     };
 
-    const unreadCount = notifications.filter((n) => !n.read).length;
+    const unreadCount = notifications.filter((n) => !n.is_read).length;
 
     if (loading) {
         return (
@@ -164,7 +164,7 @@ export default function NotificacionesScreen() {
                             key={notification.id}
                             style={[
                                 styles.notificationCard,
-                                !notification.read && styles.notificationUnread,
+                                !notification.is_read && styles.notificationUnread,
                             ]}
                             onPress={() => handleNotificationPress(notification)}
                             activeOpacity={0.7}
@@ -193,7 +193,7 @@ export default function NotificacionesScreen() {
                                 <Text style={styles.notificationBody} numberOfLines={2}>
                                     {notification.body}
                                 </Text>
-                                {!notification.read && <View style={styles.unreadDot} />}
+                                {!notification.is_read && <View style={styles.unreadDot} />}
                             </View>
                         </TouchableOpacity>
                     ))

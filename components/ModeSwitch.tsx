@@ -11,6 +11,7 @@ import {
     View
 } from 'react-native';
 import { ModeColors, useAppMode } from '../hooks/useAppMode';
+import { normalizeFontSwitch } from '../lib/normalize';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SWITCH_WIDTH = Math.min(200, SCREEN_WIDTH * 0.5);
@@ -178,7 +179,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     label: {
-        fontSize: 13,
+        fontSize: normalizeFontSwitch(13),
         fontWeight: '600',
         letterSpacing: 0.3,
     },
