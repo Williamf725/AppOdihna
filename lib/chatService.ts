@@ -253,28 +253,62 @@ export async function sendCounterOffer(
     originalProposalId: string,
     message?: string
 ): Promise<Message | null> {
-    const { data, error } = await supabase
-        .from('messages')
-        .insert({
-            conversation_id: conversationId,
-            sender_id: senderId,
-            type: 'counter_offer',
-            content: message || null,
-            payload: {
-                counter_price: counterPrice,
-                original_proposal_id: originalProposalId,
-                status: 'pending',
-            },
-        })
-        .select()
-        .single();
+    try {
+        // 1. Obtener el mensaje original (propuesta o contraoferta anterior)
+        const { data: originalMessage, error: fetchError } = await supabase
+            .from('messages')
+            .select('*')
+            .eq('id', originalProposalId)
+            .single();
 
-    if (error) {
-        console.error('Error sending counter offer:', error);
+        if (fetchError || !originalMessage) {
+            console.error('Error fetching original message for counter:', fetchError);
+            return null;
+        }
+
+        // 2. Actualizar el estado de la propuesta original a 'countered'
+        const updatedPayload = {
+            ...originalMessage.payload,
+            status: 'countered'
+        };
+
+        const { error: updateError } = await supabase
+            .from('messages')
+            .update({ payload: updatedPayload })
+            .eq('id', originalProposalId);
+
+        if (updateError) {
+            console.error('Error updating original proposal status:', updateError);
+            // Non-blocking error, we still try to send the counter offer
+        }
+
+        // 3. Insertar el mensaje de contraoferta
+        const { data, error } = await supabase
+            .from('messages')
+            .insert({
+                conversation_id: conversationId,
+                sender_id: senderId,
+                type: 'counter_offer',
+                content: message || null,
+                payload: {
+                    counter_price: counterPrice,
+                    original_proposal_id: originalProposalId,
+                    status: 'pending',
+                },
+            })
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Error sending counter offer:', error);
+            return null;
+        }
+
+        return data as Message;
+    } catch (e) {
+        console.error('Exception in sendCounterOffer:', e);
         return null;
     }
-
-    return data as Message;
 }
 
 /**
@@ -285,36 +319,58 @@ export async function acceptProposal(
     senderId: string,
     originalMessageId: string
 ): Promise<Message | null> {
-    // 1. Actualizar el mensaje original
-    await supabase
-        .from('messages')
-        .update({
-            payload: supabase.rpc('jsonb_set_status', {
-                message_id: originalMessageId,
-                new_status: 'accepted'
+    try {
+        // 1. Obtener el mensaje original
+        const { data: originalMessage, error: fetchError } = await supabase
+            .from('messages')
+            .select('*')
+            .eq('id', originalMessageId)
+            .single();
+
+        if (fetchError || !originalMessage) {
+            console.error('Error fetching original message:', fetchError);
+            return null;
+        }
+
+        // 2. Actualizar el estado en el payload
+        const updatedPayload = {
+            ...originalMessage.payload,
+            status: 'accepted'
+        };
+
+        const { error: updateError } = await supabase
+            .from('messages')
+            .update({ payload: updatedPayload })
+            .eq('id', originalMessageId);
+
+        if (updateError) {
+            console.error('Error updating proposal status:', updateError);
+            return null;
+        }
+
+        // 3. Enviar mensaje de aceptación
+        const { data, error } = await supabase
+            .from('messages')
+            .insert({
+                conversation_id: conversationId,
+                sender_id: senderId,
+                type: 'acceptance',
+                content: '¡Propuesta aceptada! 🎉',
+                payload: { original_message_id: originalMessageId },
             })
-        })
-        .eq('id', originalMessageId);
+            .select()
+            .single();
 
-    // 2. Enviar mensaje de aceptación
-    const { data, error } = await supabase
-        .from('messages')
-        .insert({
-            conversation_id: conversationId,
-            sender_id: senderId,
-            type: 'acceptance',
-            content: '¡Propuesta aceptada! 🎉',
-            payload: { original_message_id: originalMessageId },
-        })
-        .select()
-        .single();
+        if (error) {
+            console.error('Error acceptance message:', error);
+            return null;
+        }
 
-    if (error) {
-        console.error('Error accepting proposal:', error);
+        return data as Message;
+    } catch (e) {
+        console.error('Exception in acceptProposal:', e);
         return null;
     }
-
-    return data as Message;
 }
 
 /**
@@ -326,24 +382,58 @@ export async function rejectProposal(
     originalMessageId: string,
     reason?: string
 ): Promise<Message | null> {
-    const { data, error } = await supabase
-        .from('messages')
-        .insert({
-            conversation_id: conversationId,
-            sender_id: senderId,
-            type: 'rejection',
-            content: reason || 'Propuesta rechazada',
-            payload: { original_message_id: originalMessageId },
-        })
-        .select()
-        .single();
+    try {
+        // 1. Obtener el mensaje original
+        const { data: originalMessage, error: fetchError } = await supabase
+            .from('messages')
+            .select('*')
+            .eq('id', originalMessageId)
+            .single();
 
-    if (error) {
-        console.error('Error rejecting proposal:', error);
+        if (fetchError || !originalMessage) {
+            console.error('Error fetching original message:', fetchError);
+            return null;
+        }
+
+        // 2. Actualizar el estado en el payload
+        const updatedPayload = {
+            ...originalMessage.payload,
+            status: 'rejected'
+        };
+
+        const { error: updateError } = await supabase
+            .from('messages')
+            .update({ payload: updatedPayload })
+            .eq('id', originalMessageId);
+
+        if (updateError) {
+            console.error('Error updating proposal status:', updateError);
+            return null;
+        }
+
+        // 3. Enviar mensaje de rechazo
+        const { data, error } = await supabase
+            .from('messages')
+            .insert({
+                conversation_id: conversationId,
+                sender_id: senderId,
+                type: 'rejection',
+                content: reason || 'Propuesta rechazada',
+                payload: { original_message_id: originalMessageId },
+            })
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Error rejecting proposal:', error);
+            return null;
+        }
+
+        return data as Message;
+    } catch (e) {
+        console.error('Exception in rejectProposal:', e);
         return null;
     }
-
-    return data as Message;
 }
 
 /**

@@ -3,7 +3,7 @@
     "name": "OdihnaApp",
     "slug": "odihna-living",
     "owner": "odihna",
-    "version": "2.2.0",
+    "version": "2.2.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "odihna-living",

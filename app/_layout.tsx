@@ -1,8 +1,8 @@
 // app/_layout.tsx
 import * as Linking from 'expo-linking';
-import { Slot, useRouter, useSegments } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Text, TextInput } from 'react-native';
+import { Slot, useRootNavigationState, useRouter, useSegments } from 'expo-router';
+import { useEffect } from 'react';
+import { ActivityIndicator, Text, TextInput, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppModeProvider } from '../contexts/AppModeContext';
 import { AuthProvider, useAuthContext } from '../contexts/AuthContext';
@@ -41,66 +41,62 @@ if (!(TextInput as any).defaultProps) (TextInput as any).defaultProps = {};
 
 // ═══════════════════════════════════════════════════════════════════════════
 
-// ✅ Componente interno que maneja la navegación basada en auth
+// ✅ Componente interno corregido
 function RootLayoutNav() {
   const { user, loading } = useAuthContext();
   const segments = useSegments();
   const router = useRouter();
-  const [isNavigationReady, setIsNavigationReady] = useState(false);
 
-  // Marcar navegación como lista después del primer render
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsNavigationReady(true);
-    }, 100);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // ✅ Registrar push token cuando el usuario se autentica
-  useEffect(() => {
-    if (user) {
-      const setupNotifications = async () => {
-        try {
-          const { registerForPushNotificationsAsync, savePushToken } = await import('../lib/notificationService');
-          const token = await registerForPushNotificationsAsync();
-          if (token) {
-            await savePushToken(user.id, token);
-          }
-        } catch (error) {
-          console.log('⚠️ Error configurando notificaciones:', error);
-        }
-      };
-      setupNotifications();
-    }
-  }, [user]);
+  // ✅ LA SOLUCIÓN AL BUCLE: 
+  // Hook oficial de Expo para saber si la navegación ya montó.
+  // Reemplaza al setTimeout y es mucho más preciso.
+  const rootNavigationState = useRootNavigationState();
 
   useEffect(() => {
-    if (loading || !isNavigationReady) return;
+    // 🛑 REGLA 1: Si el router no está listo, NO TE MUEVAS.
+    if (!rootNavigationState?.key) return;
 
-    // Castear a string para evitar errores de TypeScript con tipos estrictos de expo-router
+    // 🛑 REGLA 2: Si AuthContext está cargando, NO TE MUEVAS.
+    // Esto evita el bucle infinito y la pantalla negra.
+    // Esperamos pacientemente a que Supabase termine su trabajo.
+    if (loading) return;
+
+    // Lógica de Segmentos
     const firstSegment = segments[0] as string | undefined;
-    const segmentCount = segments.length as number;
-    const inAuthGroup = firstSegment === 'auth';
-    const inTabs = firstSegment === '(tabs)';
-    const isWelcome = segmentCount < 1 || firstSegment === 'index' || !firstSegment;
 
+    // Definir zonas
+    // index = pantalla de carga/bienvenida, (auth) = login/registro
+    const inAuthGroup = firstSegment === '(auth)' || firstSegment === 'auth';
+    const isWelcome = !firstSegment || firstSegment === 'index';
+    const inPublicArea = inAuthGroup || isWelcome;
+
+    // 🧭 Lógica de Redirección (Solo se ejecuta cuando loading === false)
     if (!user) {
-      // Usuario no autenticado
-      // Si está en tabs o en una pantalla protegida, redirigir a welcome
-      if (inTabs) {
-        console.log('🔄 Usuario no autenticado, redirigiendo a welcome...');
+      // Si NO hay usuario y estamos en zona privada (tabs, perfil, etc) -> LOGIN
+      if (!inPublicArea) {
+        console.log('🔒 Acceso denegado, redirigiendo a Login...');
         router.replace('/');
       }
     } else {
-      // Usuario autenticado
-      // Si está en welcome o auth, redirigir a tabs
-      if (isWelcome || inAuthGroup) {
-        console.log('🔄 Usuario autenticado, redirigiendo a tabs...');
+      // Si HAY usuario y estamos en zona pública (login, welcome) -> HOME
+      if (inPublicArea) {
+        console.log('✅ Usuario autenticado, entrando a la App...');
         router.replace('/(tabs)');
       }
     }
-  }, [user, loading, segments, isNavigationReady]);
+  }, [user, loading, segments, rootNavigationState?.key]);
 
+  // 🖥️ RENDERIZADO CONDICIONAL
+  // Si el router no está listo O estamos cargando auth -> Spinner
+  if (!rootNavigationState?.key || loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
+        <ActivityIndicator size="large" color="#000" />
+      </View>
+    );
+  }
+
+  // Si todo cargó, mostramos la app
   return <Slot />;
 }
 

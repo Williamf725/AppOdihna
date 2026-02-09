@@ -3,6 +3,7 @@
 
 import { useAuth } from '@/hooks/useAuth';
 import {
+    acceptProposal,
     CounterOfferPayload,
     formatChatPrice,
     getConversationById,
@@ -10,10 +11,12 @@ import {
     markMessagesAsRead,
     Message,
     ProposalPayload,
+    rejectProposal,
     sendCounterOffer,
     sendTextMessage,
     subscribeToMessages,
 } from '@/lib/chatService';
+import { formatCurrencyInput, parseCurrencyInput } from '@/lib/formatters';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
@@ -169,7 +172,7 @@ export default function ChatScreen() {
             await sendCounterOffer(
                 conversationId,
                 user.id,
-                parseInt(counterPrice.replace(/\D/g, '')),
+                parseCurrencyInput(counterPrice),
                 selectedProposalId,
                 counterMessage.trim() || undefined
             );
@@ -183,6 +186,60 @@ export default function ChatScreen() {
         } finally {
             setSending(false);
         }
+    };
+
+    const handleAcceptProposal = async (messageId: string) => {
+        if (!user || sending) return;
+
+        Alert.alert(
+            'Confirmar Aceptación',
+            '¿Estás seguro de que deseas aceptar esta propuesta? Esta acción notificará a la otra parte.',
+            [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                    text: 'Aceptar',
+                    style: 'default',
+                    onPress: async () => {
+                        setSending(true);
+                        try {
+                            await acceptProposal(conversationId, user.id, messageId);
+                        } catch (error) {
+                            console.error('Error accepting proposal:', error);
+                            Alert.alert('Error', 'No se pudo aceptar la propuesta');
+                        } finally {
+                            setSending(false);
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    const handleRejectProposal = async (messageId: string) => {
+        if (!user || sending) return;
+
+        Alert.alert(
+            'Rechazar Propuesta',
+            '¿Estás seguro de que deseas rechazar esta propuesta?',
+            [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                    text: 'Rechazar',
+                    style: 'destructive',
+                    onPress: async () => {
+                        setSending(true);
+                        try {
+                            await rejectProposal(conversationId, user.id, messageId);
+                        } catch (error) {
+                            console.error('Error rejecting proposal:', error);
+                            Alert.alert('Error', 'No se pudo rechazar la propuesta');
+                        } finally {
+                            setSending(false);
+                        }
+                    }
+                }
+            ]
+        );
     };
 
     const openCounterModal = (proposalId: string) => {
@@ -284,7 +341,7 @@ export default function ChatScreen() {
                             <View style={styles.actionButtons}>
                                 <TouchableOpacity
                                     style={[styles.actionButton, { backgroundColor: colors.success }]}
-                                    onPress={() => Alert.alert('Próximamente', 'Función de aceptar propuesta')}
+                                    onPress={() => handleAcceptProposal(item.id)}
                                 >
                                     <Ionicons name="checkmark" size={18} color="#fff" />
                                     <Text style={styles.actionButtonText}>Aceptar</Text>
@@ -298,7 +355,7 @@ export default function ChatScreen() {
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={[styles.actionButton, { backgroundColor: colors.error }]}
-                                    onPress={() => Alert.alert('Próximamente', 'Función de rechazar propuesta')}
+                                    onPress={() => handleRejectProposal(item.id)}
                                 >
                                     <Ionicons name="close" size={18} color="#fff" />
                                     <Text style={styles.actionButtonText}>Rechazar</Text>
@@ -338,6 +395,33 @@ export default function ChatScreen() {
                             <Text style={[styles.proposalMessage, { color: colors.textSecondary }]}>
                                 "{item.content}"
                             </Text>
+                        )}
+
+                        {/* Botones de acción para Contraoferta */}
+                        {!isOwnMessage && payload.status === 'pending' && (
+                            <View style={styles.actionButtons}>
+                                <TouchableOpacity
+                                    style={[styles.actionButton, { backgroundColor: colors.success }]}
+                                    onPress={() => handleAcceptProposal(item.id)}
+                                >
+                                    <Ionicons name="checkmark" size={18} color="#fff" />
+                                    <Text style={styles.actionButtonText}>Aceptar</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.actionButton, { backgroundColor: colors.warning }]}
+                                    onPress={() => openCounterModal(item.id)}
+                                >
+                                    <Ionicons name="swap-horizontal" size={18} color="#fff" />
+                                    <Text style={styles.actionButtonText}>Contraoferta</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.actionButton, { backgroundColor: colors.error }]}
+                                    onPress={() => handleRejectProposal(item.id)}
+                                >
+                                    <Ionicons name="close" size={18} color="#fff" />
+                                    <Text style={styles.actionButtonText}>Rechazar</Text>
+                                </TouchableOpacity>
+                            </View>
                         )}
 
                         <Text style={[styles.messageTime, { color: colors.textSecondary, marginTop: 8 }]}>
@@ -487,7 +571,7 @@ export default function ChatScreen() {
                             <TextInput
                                 style={[styles.priceInput, { color: colors.text }]}
                                 value={counterPrice}
-                                onChangeText={(text) => setCounterPrice(text.replace(/\D/g, ''))}
+                                onChangeText={(text) => setCounterPrice(formatCurrencyInput(text))}
                                 placeholder="0"
                                 placeholderTextColor={colors.textSecondary}
                                 keyboardType="numeric"

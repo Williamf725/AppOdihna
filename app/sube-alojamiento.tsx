@@ -14,6 +14,7 @@ import {
 } from '@/constants/realEstateData';
 import { useAuth } from '@/hooks/useAuth';
 import { isCloudinaryConfigured, uploadMultipleImages } from '@/lib/cloudinaryService';
+import { formatCurrencyInput, parseCurrencyInput } from '@/lib/formatters';
 import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -268,7 +269,7 @@ function SubeAlojamientoContent() {
           location: `${city}, ${department}`,
           city: city.trim(),
           department: department,
-          price: Number(price),
+          price: parseCurrencyInput(price),
           rating: 5.0,
           review_count: 0,
           images: uploadedImageUrls,
@@ -303,7 +304,7 @@ function SubeAlojamientoContent() {
     setUploading(true);
     try {
       const uploadedImageUrls = await uploadImages();
-      const priceNum = Number(salePrice);
+      const priceNum = parseCurrencyInput(salePrice);
       const metrajeNum = Number(metraje);
       const pricePerMeter = metrajeNum > 0 ? Math.round(priceNum / metrajeNum) : null;
 
@@ -449,7 +450,7 @@ function SubeAlojamientoContent() {
               style={[styles.priceInput, { color: colors.text }]}
               placeholder={publishMode === 'estadia' ? "280000" : "350000000"}
               value={publishMode === 'estadia' ? price : salePrice}
-              onChangeText={publishMode === 'estadia' ? setPrice : setSalePrice}
+              onChangeText={text => publishMode === 'estadia' ? setPrice(formatCurrencyInput(text)) : setSalePrice(formatCurrencyInput(text))}
               keyboardType="numeric"
               placeholderTextColor={colors.textSecondary}
               editable={!uploading}

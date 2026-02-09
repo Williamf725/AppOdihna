@@ -313,26 +313,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('🔓 Iniciando cierre de sesión...');
 
-      // Limpiar estado local primero
+      // 1. ACTIVAR CARGA: Esto obliga al RootLayout a mostrar el Spinner
+      // y desmontar la pantalla actual inmediatamente.
+      setLoading(true);
+
+      // 2. Limpiar estado local
       setUser(null);
       setProfile(null);
       setSession(null);
 
-      // Limpiar sesión almacenada
+      // 3. Limpiar almacenamiento
       await AsyncStorage.removeItem('supabase-session');
 
-      // Cerrar sesión en Supabase
+      // 4. Cerrar en Supabase
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error('Error cerrando sesión en Supabase:', error);
       }
 
-      console.log('✅ Sesión cerrada correctamente');
-      // ✅ La navegación se maneja desde el componente que llama a signOut
-
     } catch (error: any) {
       console.error('❌ Error en logout:', error);
-      // El estado ya fue limpiado, el componente manejará la navegación
+    } finally {
+      // 5. FINALIZAR CARGA: 
+      // Aquí es cuando el RootLayout detecta (!user && !loading)
+      // y ejecuta el router.replace('/') limpio y sin errores.
+      setLoading(false);
+      console.log('✅ Sesión cerrada y loading finalizado');
     }
   };
 

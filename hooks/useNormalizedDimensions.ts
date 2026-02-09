@@ -4,7 +4,7 @@ import { Dimensions, PixelRatio, Platform, useWindowDimensions } from 'react-nat
  * Dispositivo de referencia para normalización
  * Basado en iPhone 14 Pro / Pixel 7 (resoluciones estándar de diseño)
  */
-const DESIGN_WIDTH = 500;
+const DESIGN_WIDTH = 490;
 const DESIGN_HEIGHT = 844;
 
 /**

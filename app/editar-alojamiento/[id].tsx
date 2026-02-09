@@ -6,6 +6,7 @@ import { ThemedView } from '@/components/themed-view';
 import { availableAmenities, colombianDepartments } from '@/constants/mockData';
 import { useAuth } from '@/hooks/useAuth';
 import { isCloudinaryConfigured, uploadImageToCloudinary } from '@/lib/cloudinaryService';
+import { formatCurrencyInput, parseCurrencyInput } from '@/lib/formatters';
 import { isPropertyOwner, supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -116,7 +117,7 @@ function EditarAlojamientoContent() {
         // ✅ Cargar datos con nombres correctos de columnas
         setTitle(data.title);
         setDescription(data.description);
-        setPrice(data.price.toString());
+        setPrice(formatCurrencyInput(data.price.toString()));
         setCity(data.city);
         setDepartment(data.department);
         setSelectedAmenities(data.amenities || []);
@@ -191,7 +192,7 @@ function EditarAlojamientoContent() {
       Alert.alert('Error', 'Por favor ingresa una descripción');
       return false;
     }
-    if (!price.trim() || isNaN(Number(price))) {
+    if (!price.trim() || parseCurrencyInput(price) <= 0) {
       Alert.alert('Error', 'Por favor ingresa un precio válido');
       return false;
     }
@@ -306,7 +307,7 @@ function EditarAlojamientoContent() {
           location: `${city}, ${department}`,
           city: city.trim(),
           department: department,
-          price: Number(price),
+          price: parseCurrencyInput(price),
           images: finalImageUrls,
           amenities: selectedAmenities,
           tags: selectedTags,
@@ -422,7 +423,7 @@ function EditarAlojamientoContent() {
             style={styles.input}
             placeholder="280000"
             value={price}
-            onChangeText={setPrice}
+            onChangeText={(text) => setPrice(formatCurrencyInput(text))}
             keyboardType="numeric"
             placeholderTextColor="#999"
             editable={!uploading}

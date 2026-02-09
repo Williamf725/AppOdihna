@@ -348,21 +348,7 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.actionButton, { borderBottomColor: colors.divider }]}>
-            <View style={[styles.actionIconContainer, { backgroundColor: `${colors.accent}15` }]}>
-              <Ionicons name="shield-checkmark-outline" size={20} color={colors.accent} />
-            </View>
-            <Text style={[styles.actionButtonText, { color: colors.text }]}>Verificar identidad</Text>
-            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-          </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.actionButton, { borderBottomColor: colors.divider }]}>
-            <View style={[styles.actionIconContainer, { backgroundColor: `${colors.accent}15` }]}>
-              <Ionicons name="settings-outline" size={20} color={colors.accent} />
-            </View>
-            <Text style={[styles.actionButtonText, { color: colors.text }]}>Configuración</Text>
-            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-          </TouchableOpacity>
 
           <TouchableOpacity style={[styles.actionButton, { borderBottomWidth: 0 }]}>
             <View style={[styles.actionIconContainer, { backgroundColor: `${colors.accent}15` }]}>

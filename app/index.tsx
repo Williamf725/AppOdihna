@@ -507,7 +507,7 @@ export default function WelcomeScreen() {
 
             <Animated.View style={{ opacity: slideAnim }}>
               <ThemedText style={styles.footerText}>
-                © 2025 Odihna. Todos los derechos reservados.
+                © 2026 Odihna. Todos los derechos reservados.
               </ThemedText>
             </Animated.View>
           </Animated.View>
@@ -591,7 +591,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   logoText: {
-    fontSize: normalizeFontLogo(20),
+    fontSize: normalizeFontLogo(35),
     fontWeight: '300',
     color: '#fff',
     letterSpacing: normalize(8),
@@ -602,7 +602,7 @@ const styles = StyleSheet.create({
     textShadowRadius: normalize(10),
   },
   subtitle: {
-    fontSize: normalizeFont(8),
+    fontSize: normalizeFont(11),
     fontWeight: '400',
     color: '#FFD700',
     letterSpacing: normalize(2.5),
@@ -623,29 +623,29 @@ const styles = StyleSheet.create({
     shadowRadius: normalize(5.5),
   },
   taglineMain: {
-    fontSize: normalizeFontLogo(33),
+    fontSize: normalizeFontLogo(45),
     color: '#fff',
     textAlign: 'center',
     fontWeight: '400',
     letterSpacing: normalize(0.65),
-    lineHeight: normalizeFontLogo(36),
+    lineHeight: normalizeFontLogo(45),
     fontFamily: 'serif',
     textShadowColor: '#ffffff',
     textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: normalize(10),
+    textShadowRadius: normalize(15),
   },
   taglineAccent: {
-    fontSize: normalizeFontLogo(31),
+    fontSize: normalizeFontLogo(37),
     color: '#FFD700',
     textAlign: 'center',
     fontWeight: '300',
     fontStyle: 'italic',
     letterSpacing: normalize(1.25),
-    lineHeight: normalizeFontLogo(34),
+    lineHeight: normalizeFontLogo(42),
     fontFamily: 'serif',
     textShadowColor: '#FFD700',
     textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: normalize(10),
+    textShadowRadius: normalize(15),
   },
   indicators: {
     flexDirection: 'row',
@@ -669,10 +669,10 @@ const styles = StyleSheet.create({
   },
   buttonsContainer: {
     gap: normalize(16),
-    marginBottom: normalize(20),
+    marginBottom: normalize(25),
   },
   marbleButtonContainer: {
-    borderRadius: normalize(17), // Alargado
+    borderRadius: normalize(15), // Alargado
     shadowColor: '#000',
     shadowOffset: { width: 0, height: normalize(6) },
     shadowOpacity: 0.5,
@@ -701,7 +701,7 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   marbleButtonText: {
-    fontSize: normalizeFont(12),
+    fontSize: normalizeFont(19),
     fontWeight: '700',
     color: '#AA771C', // Dorado oscuro para el texto
     letterSpacing: normalize(0.9),
@@ -741,7 +741,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   secondaryButtonText: {
-    fontSize: normalizeFont(9),
+    fontSize: normalizeFont(17),
     fontWeight: '600',
     color: '#fff',
     letterSpacing: normalize(0.3),
